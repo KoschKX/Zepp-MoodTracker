@@ -600,10 +600,7 @@ Page({
       if (stored === '{}' || stored === '') {
         return;
       }
-      const clearedAt = getClearedAtToken();
-      if (clearedAt && clearedAt === _lastClearToken) {
-        return;
-      }
+      // Removed clearedAt/_lastClearToken check to always allow save/sync after clear
       saveMoodData();
       const d = getItem();
       if (d && d !== '{}') {

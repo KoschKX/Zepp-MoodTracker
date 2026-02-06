@@ -82,6 +82,23 @@ AppSideService({
     try {
       settings.settingsStorage.addListener('change', ({ key, newValue }) => {
         console.log('[APP-SIDE] Storage change:', key);
+
+        // Forward GENERATE_SAMPLE_DATA to the watch
+        if (key === 'generateSampleData') {
+          try {
+            if (!newValue) return;
+            const payload = JSON.parse(newValue);
+            console.log('[APP-SIDE] 🚀 GENERATE_SAMPLE_DATA requested:', payload);
+            messageBuilder.request({
+              method: 'GENERATE_SAMPLE_DATA',
+              params: payload
+            }, { timeout: 5000 })
+            .then(() => console.log('[APP-SIDE] ✅ GENERATE_SAMPLE_DATA sent to watch'))
+            .catch((e) => console.log('[APP-SIDE] ❌ GENERATE_SAMPLE_DATA failed:', e));
+          } catch (e) {
+            console.log('[APP-SIDE] ❌ GENERATE_SAMPLE_DATA parse failed:', e);
+          }
+        }
         
         if (key === 'reminderEnabled' || key === 'reminderTime') {
           const enabled = settings.settingsStorage.getItem('reminderEnabled') || 'false';
@@ -196,12 +213,9 @@ AppSideService({
         const payload = messageBuilder.buf2Json(ctx.request.payload);
         const receivedTime = new Date().toISOString();
         console.log('[APP-SIDE] ← Request:', payload.method);
-        
         if (payload.method === 'SYNC_MOOD_DATA') {
           settings.settingsStorage.setItem('moodData', payload.params);
           settings.settingsStorage.setItem('lastSync', receivedTime);
-          console.log('[APP-SIDE] ✅ Mood data synced');
-          
           ctx.response({
             data: { success: true, time: receivedTime }
           });
@@ -210,7 +224,6 @@ AppSideService({
           // Don't log sync_log - contains too much data
         } else if (payload.method === 'REQUEST_PHONE_DATA') {
           const phoneData = settings.settingsStorage.getItem('moodData');
-          
           if (phoneData && phoneData !== '{}') {
             console.log('[APP-SIDE] ✅ Sending mood data to watch');
             ctx.response({

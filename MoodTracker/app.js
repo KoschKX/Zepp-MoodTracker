@@ -36,6 +36,52 @@ App({
         const payload = messageBuilder.buf2Json(ctx.request.payload)
         console.log('[App] ← Request:', payload.method)
 
+        if (payload.method === 'GENERATE_SAMPLE_DATA') {
+          // Generate and save sample data for the given range, merging with existing data
+          try {
+            let { data, startDate, endDate } = payload.params || {};
+            if (!startDate || !endDate) {
+              ctx.response({ data: { success: false, error: 'Missing startDate/endDate' } });
+            } else {
+              let sample = {};
+              if (data) {
+                sample = typeof data === 'string' ? JSON.parse(data) : data;
+              } else {
+                // If no data provided, generate random data for the range
+                let date = new Date(startDate);
+                const end = new Date(endDate);
+                while (date <= end) {
+                  const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+                  sample[key] = Math.random() < 0.7 ? Math.floor(Math.random() * 5) + 1 : 0;
+                  date.setDate(date.getDate() + 1);
+                }
+              }
+              // Merge with existing mood_history
+              let existing = {};
+              try {
+                const stored = localStorage.getItem('mood_history');
+                if (stored && stored !== '{}' && stored !== 'null') {
+                  existing = JSON.parse(stored);
+                }
+              } catch (e) {}
+              // Overwrite only the window keys
+              for (const key in sample) {
+                existing[key] = sample[key];
+              }
+              localStorage.setItem('mood_history', JSON.stringify(existing));
+              // If on mood_page or mood_select, refresh UI as after clear
+              const cb = this.globalData.onMoodDataCleared;
+              if (cb && typeof cb === 'function') {
+                try { cb(Date.now()); } catch (e) {}
+              }
+              ctx.response({ data: { success: true } });
+            }
+          } catch (e) {
+            ctx.response({ data: { success: false, error: e.message } });
+          }
+          return;
+        }
+
         if (payload.method === 'SYNC_MOOD_DATA') {
           try {
             const dataStr = typeof payload.params === 'string' ? payload.params : JSON.stringify(payload.params || {})
@@ -43,6 +89,14 @@ App({
           } catch (e) {
             localStorage.setItem('mood_history', '{}')
           }
+          let data = {}
+          try {
+            const stored = localStorage.getItem('mood_history')
+            data = stored ? JSON.parse(stored) : {}
+          } catch (e) {
+            data = {}
+          }
+          // ...existing code...
           const clearedAt = Date.now()
           localStorage.setItem('mood_history_cleared_at', String(clearedAt))
           this.globalData.moodDataClearedAt = clearedAt
@@ -70,6 +124,7 @@ App({
 
         if (payload.method === 'CLEAR_MOOD_DATA_RANGE') {
           const { referenceDate, days } = payload.params || {}
+          // ...existing code...
           if (!referenceDate || !days) {
             ctx.response({ data: { success: false, error: 'Invalid params' } })
             return
@@ -81,7 +136,7 @@ App({
           } catch (e) {
             data = {}
           }
-
+          // ...existing code...
           const refDate = new Date(referenceDate)
           for (let i = Number(days) - 1; i >= 0; i--) {
             const d = new Date(refDate)
@@ -89,7 +144,7 @@ App({
             const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
             if (data[key]) delete data[key]
           }
-
+          // ...existing code...
           const clearedAt = Date.now()
           localStorage.setItem('mood_history', JSON.stringify(data))
           localStorage.setItem('mood_history_cleared_at', String(clearedAt))
@@ -98,6 +153,7 @@ App({
           if (cb && typeof cb === 'function') {
             try { cb(clearedAt) } catch (e) {}
           }
+          // ...existing code...
           ctx.response({ data: { success: true } })
           return
         }

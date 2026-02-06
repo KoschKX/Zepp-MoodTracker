@@ -1,4 +1,4 @@
-const DEBUG_MODE = false;
+const DEBUG_MODE = true;
 const Debug = DEBUG_MODE ? require('./debug') : null;
 const ADVANCED_MODE = true;
 const Advanced = ADVANCED_MODE ? require('./advanced') : null;
@@ -8,6 +8,26 @@ AppSettingsPage({
     // Heads up: settingsStorage.addListener isn't in the ZeppOS companion
     // App-side storage changes still trigger a refresh when needed
     const storage = props.settingsStorage;
+    // Forward GENERATE_SAMPLE_DATA messages to the app-side (watch)
+    if (typeof window !== 'undefined' && window.onmessage === null) {
+      window.onmessage = function(event) {
+        const msg = event.data;
+        if (msg && msg.type === 'GENERATE_SAMPLE_DATA') {
+          try {
+            if (typeof MessageBuilder !== 'undefined' && MessageBuilder && MessageBuilder.prototype) {
+              // Use the ZeppOS MessageBuilder if available
+              const builder = new MessageBuilder();
+              builder.request({
+                method: 'GENERATE_SAMPLE_DATA',
+                params: msg.params || {}
+              });
+            }
+          } catch (e) {
+            console.log('[SampleData] Failed to send GENERATE_SAMPLE_DATA to watch:', e);
+          }
+        }
+      };
+    }
     const safeGet = (key, fallback, parser) => {
       try {
         const value = storage.getItem(key);
@@ -100,45 +120,36 @@ AppSettingsPage({
     }
 
     // Build mood data array for the current view
-    const generateMoodDataForView = () => {
-      const referenceDate = getReferenceDate();
-      
+    const generateMoodDataForView = (explicitViewMode, explicitReferenceDate) => {
+      const mode = explicitViewMode !== undefined ? explicitViewMode : viewMode;
+      const referenceDate = explicitReferenceDate !== undefined ? explicitReferenceDate : getReferenceDate();
+      console.log('[generateMoodDataForView] mode:', mode, 'referenceDate:', referenceDate);
       let startDate, endDate, days;
-      
-      if (viewMode === 'week') {
-        // Week view: weeks of the month, starting on the 1st
-        // Figure out which week we're on
+      if (mode === 'week') {
         const monthStart = new Date(referenceDate.getFullYear(), referenceDate.getMonth(), 1);
         const currentDay = referenceDate.getDate();
-        const weekNumber = Math.floor((currentDay - 1) / 7); // 0-based week number
-        
+        const weekNumber = Math.floor((currentDay - 1) / 7);
         startDate = new Date(monthStart);
         startDate.setDate(1 + (weekNumber * 7));
-        
         endDate = new Date(startDate);
         endDate.setDate(startDate.getDate() + 6);
-        
-        // Clamp to end of month
         const monthEnd = new Date(referenceDate.getFullYear(), referenceDate.getMonth() + 1, 0);
         if (endDate > monthEnd) {
           endDate = monthEnd;
         }
-        
         days = Math.floor((endDate - startDate) / (1000 * 60 * 60 * 24)) + 1;
-      } else if (viewMode === 'month') {
-        // Month view: start on the 1st
+      } else if (mode === 'month') {
         startDate = new Date(referenceDate.getFullYear(), referenceDate.getMonth(), 1);
         endDate = new Date(referenceDate.getFullYear(), referenceDate.getMonth() + 1, 0);
         days = endDate.getDate();
-      } else if (viewMode === 'year') {
-        // Year view: start Jan 1
+      } else if (mode === 'year') {
         startDate = new Date(referenceDate.getFullYear(), 0, 1);
         endDate = new Date(referenceDate.getFullYear(), 11, 31);
         const year = referenceDate.getFullYear();
         const isLeapYear = (year % 4 === 0 && year % 100 !== 0) || (year % 400 === 0);
         days = isLeapYear ? 366 : 365;
       }
-      
+      console.log('[generateMoodDataForView] startDate:', startDate, 'endDate:', endDate, 'days:', days);
       const moodArray = [];
       for (let i = 0; i < days; i++) {
         const date = new Date(startDate);
@@ -867,7 +878,23 @@ AppSettingsPage({
           ]
         ),
 
-        ...(Advanced ? Advanced.buildAdvancedUI({ props, viewMode, getReferenceDate, getViewDays, formatDateKey, getBool }) : []),
+        ...(Advanced ? Advanced.buildAdvancedUI({
+          props,
+          viewMode,
+          referenceDate,
+          getReferenceDate,
+          getViewDays,
+          formatDateKey,
+          getBool,
+          getCurrentViewRange: () => {
+            // Use explicit props, not closure
+            console.log('[getCurrentViewRange] viewMode:', viewMode, 'referenceDate:', referenceDate);
+            const result = generateMoodDataForView(viewMode, referenceDate);
+            console.log('[getCurrentViewRange] generateMoodDataForView result:', result);
+            const { startDate, endDate } = result;
+            return { startDate, endDate };
+          }
+        }) : []),
 
         // Toggle for extra info
         View(
