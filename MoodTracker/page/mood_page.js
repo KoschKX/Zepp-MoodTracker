@@ -404,25 +404,40 @@ const updateUIAfterDateChange = (debugDateText, statusText, imgWidgets) => {
 Page({
   onInit(params) {
     // Mood from mood_select: update data before render
-    if (params && params.mood) {
-      const moodValue = params.mood;
-      console.log('[MoodPage] Received mood from params:', moodValue);
-      
-      const today = new Date();
-      const dateKey = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
-      
-      // Update data first so the dot shows on build()
-      _moodDataByDate[dateKey] = moodValue;
-      
-      // Save to storage after render (next tick)
-      setTimeout(() => {
-        try {
-          localStorage.setItem('mood_history', JSON.stringify(_moodDataByDate));
-          console.log('[MoodPage] Mood saved successfully!');
-        } catch (e) {
-          console.log('[MoodPage] Error saving mood:', e);
+    let moodParam = null;
+    if (params && typeof params === 'object' && 'mood' in params) {
+      moodParam = params.mood;
+    } else if (typeof params === 'string') {
+      try {
+        const query = params.includes('?') ? params.split('?')[1] : params;
+        const parts = query.split('&');
+        for (let i = 0; i < parts.length; i++) {
+          const [k, v] = parts[i].split('=');
+          if (k === 'mood') { moodParam = v; break; }
         }
-      }, 0);
+      } catch (e) {
+        moodParam = null;
+      }
+    }
+
+    if (moodParam === null || moodParam === undefined || `${moodParam}`.length === 0) {
+      try {
+        const app = getApp && getApp();
+        if (app?.globalData?.selectedMood) {
+          moodParam = app.globalData.selectedMood;
+          app.globalData.selectedMood = null;
+        }
+      } catch (e) {}
+    }
+
+    const moodValue = moodParam !== null && moodParam !== undefined && `${moodParam}`.length
+      ? Number(moodParam)
+      : null;
+
+    if (moodValue && moodValueMap[moodValue]) {
+      console.log('[MoodPage] Received mood from params:', moodValue);
+      _moodHistoryCache = null;
+      setTodayMood(moodValue);
     }
   },
   build() {

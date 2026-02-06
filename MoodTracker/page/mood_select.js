@@ -108,6 +108,12 @@ Page({
         });
         
         // Jump to mood_page with the mood value (it saves it)
+        try {
+          const app = getApp && getApp();
+          if (app && app.globalData) {
+            app.globalData.selectedMood = mood.value;
+          }
+        } catch (e) {}
         push({ 
           url: 'page/mood_page',
           params: { mood: mood.value }
