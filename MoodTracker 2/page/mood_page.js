@@ -22,7 +22,7 @@ const HIDE_DOTS_DURING_NAV_MONTH = true; // hide week lines by shoving offscreen
 const SHOW_LOADING_INDICATOR = true; // show "..." while waiting for month switch
 const SKIP_UI_UPDATES_DURING_NAV = true; // skip UI during nav except date text
 
-let _interpolationEnabled = false, _debugDayOffset = 0, _moodDataByDate = {}, _cachedDebugDate = null, _cachedDebugOffset = 0, _navDebounceTimer = null, _dateUpdateThrottle = null, _prevDisplayedMood = null, _prevDateStr = '', _graphNeedsRedraw = false, _isNavigating = false, _loadingText = null, _lastClearToken = 0, _lastMoodHistorySnapshot = '';
+let _interpolationEnabled = false, _debugDayOffset = 0, _moodDataByDate = {}, _cachedDebugDate = null, _cachedDebugOffset = 0, _navDebounceTimer = null, _dateUpdateThrottle = null, _prevDisplayedMood = null, _prevDateStr = '', _graphNeedsRedraw = false, _isNavigating = false, _loadingText = null, _lastClearToken = 0, _clearPollTimer = null, _restartPending = false;
 
 const raf = (typeof requestAnimationFrame !== 'undefined') ? requestAnimationFrame : (cb) => setTimeout(cb, 16);
 const getDebugDate = () => { 
@@ -37,21 +37,6 @@ const getDebugDate = () => {
 const getItem = () => JSON.stringify(_moodDataByDate);
 const setItem = (key, value) => { if (key === 'mood_history') try { _moodDataByDate = JSON.parse(value); } catch { _moodDataByDate = {}; } };
 try { const saved = localStorage.getItem('mood_history'); if (saved) setItem('mood_history', saved); } catch (e) {}
-const getClearedAtToken = () => {
-  try {
-    const v = localStorage.getItem('mood_history_cleared_at');
-    return v ? Number(v) : 0;
-  } catch (e) {
-    return 0;
-  }
-};
-const getMoodHistorySnapshot = () => {
-  try {
-    return localStorage.getItem('mood_history') || '';
-  } catch (e) {
-    return '';
-  }
-};
 const reloadMoodDataFromStorage = () => {
   try {
     const saved = localStorage.getItem('mood_history');
@@ -61,30 +46,56 @@ const reloadMoodDataFromStorage = () => {
   }
   _cachedDebugDate = _moodHistoryCache = null;
 };
-const refreshMoodDataAndUI = () => {
-  if (storageWriteTimeout) {
-    clearTimeout(storageWriteTimeout);
-    storageWriteTimeout = null;
+
+const clearGraphWidgets = () => {
+  try {
+    const hiddenY = (PX && PX.neg100 !== undefined) ? PX.neg100 : px(-100);
+    if (drawGraph.dotPool) drawGraph.dotPool.forEach(d => d.setProperty?.(prop.MORE, { y: hiddenY }));
+    if (drawGraph.interpPool) drawGraph.interpPool.forEach(d => d.setProperty?.(prop.MORE, { y: hiddenY }));
+    if (drawGraph.centerLineDots) drawGraph.centerLineDots.forEach(d => d.setProperty?.(prop.MORE, { y: hiddenY }));
+    if (drawGraph.weekLineDots) drawGraph.weekLineDots.forEach(line => line.forEach(d => d.setProperty?.(prop.MORE, { y: hiddenY })));
+    if (drawGraph.gridWidgets) drawGraph.gridWidgets.forEach(d => d.setProperty?.(prop.MORE, { y: hiddenY }));
+    if (drawGraph.xAxisLabelWidgets) drawGraph.xAxisLabelWidgets.forEach(w => w.setProperty?.(prop.MORE, { y: hiddenY, text: '' }));
+    if (drawGraph.todayArrowBg) drawGraph.todayArrowBg.setProperty?.(prop.MORE, { y: hiddenY });
+    if (drawGraph._prevMoodCounts) drawGraph._prevMoodCounts = [0, 0, 0, 0, 0];
+    if (drawGraph.legendGroup?._countWidgets) {
+      drawGraph.legendGroup._countWidgets.forEach(w => w.setProperty?.(prop.MORE, { text: '0' }));
+    }
+    if (drawGraph.statsWidgets) Object.values(drawGraph.statsWidgets).forEach(w => w.setProperty?.(prop.MORE, { text: '-' }));
+    drawGraph._labelsInitialized = false;
+    drawGraph._prevLabelCount = 0;
+    drawGraph._prevGraphMode = null;
+    drawGraph._weekLineCacheKey = null;
+    drawGraph._weekLinesHidden = null;
+    drawGraph._isRendering = false;
+    drawGraph.dotPool = [];
+    drawGraph.interpPool = [];
+  } catch (e) {}
+};
+
+const getClearedAtToken = () => {
+  try {
+    const v = localStorage.getItem('mood_history_cleared_at');
+    return v ? Number(v) : 0;
+  } catch (e) {
+    return 0;
   }
-  _interpolationEnabled = false;
-  _moodDataByDate = {};
-  reloadMoodDataFromStorage();
-  _moodHistoryCache = null;
-  _moodHistoryCacheKey = null;
-  _moodHistoryCache = null;
-  _prevDisplayedMood = null;
-  if (_loadingText) _loadingText.setProperty?.(prop.MORE, { y: px(226) });
-  if (drawGraph) drawGraph(true);
-  if (drawGraph && drawGraph.debugDateText && drawGraph.statusText && updateMoodButtonsVisibility.imgWidgets) {
-    updateUIAfterDateChange(drawGraph.debugDateText, drawGraph.statusText, updateMoodButtonsVisibility.imgWidgets);
+};
+
+const restartMoodPage = () => {
+  if (_restartPending) return;
+  _restartPending = true;
+  try {
+    push({ url: 'page/mood_select' });
+    setTimeout(() => {
+      try {
+        push({ url: 'page/mood_page' });
+      } catch (e) {}
+      _restartPending = false;
+    }, 100);
+  } catch (e) {
+    _restartPending = false;
   }
-  setTimeout(() => {
-    try {
-      _interpolationEnabled = true;
-      drawGraph && drawGraph();
-      _loadingText?.setProperty?.(prop.MORE, { y: px(-100) });
-    } catch (e) {}
-  }, 100);
 };
 let storageWriteTimeout = null;
 const scheduleMoodHistorySave = () => { if (storageWriteTimeout) clearTimeout(storageWriteTimeout); storageWriteTimeout = setTimeout(() => { saveMoodData(); storageWriteTimeout = null; }, 200); };
@@ -452,57 +463,41 @@ const updateUIAfterDateChange = (debugDateText, statusText, imgWidgets) => {
 
 Page({
   onInit(params) {
-    try {
-      const app = getApp && getApp();
-      if (app && app.globalData) {
-        app.globalData.onMoodDataCleared = (token) => {
-          try {
-            if (token && token !== _lastClearToken) {
-              _lastClearToken = token;
-            }
-            refreshMoodDataAndUI();
-          } catch (e) {}
-        };
-      }
-    } catch (e) {}
     // Mood from mood_select: update data before render
-    let moodValue = null;
-    try {
-      if (params && typeof params === 'string') {
-        if (params.startsWith('{')) {
-          const parsed = JSON.parse(params);
-          moodValue = parsed?.mood ?? null;
-        } else {
-          moodValue = params;
+    let moodParam = null;
+    if (params && typeof params === 'object' && 'mood' in params) {
+      moodParam = params.mood;
+    } else if (typeof params === 'string') {
+      try {
+        const query = params.includes('?') ? params.split('?')[1] : params;
+        const parts = query.split('&');
+        for (let i = 0; i < parts.length; i++) {
+          const [k, v] = parts[i].split('=');
+          if (k === 'mood') { moodParam = v; break; }
         }
-      } else if (params && typeof params === 'object') {
-        moodValue = params.mood ?? null;
+      } catch (e) {
+        moodParam = null;
       }
-      if (moodValue == null) {
+    }
+
+    if (moodParam === null || moodParam === undefined || `${moodParam}`.length === 0) {
+      try {
         const app = getApp && getApp();
         if (app?.globalData?.selectedMood) {
-          moodValue = app.globalData.selectedMood;
+          moodParam = app.globalData.selectedMood;
           app.globalData.selectedMood = null;
         }
-      }
-    } catch (e) {}
+      } catch (e) {}
+    }
 
-    if (moodValue != null && `${moodValue}`.length) {
-      const moodNum = Number(moodValue);
-      if (!Number.isNaN(moodNum)) {
-        console.log('[MoodPage] Received mood from params:', moodNum);
-        const today = new Date();
-        const dateKey = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
-        _moodDataByDate[dateKey] = moodNum;
-        setTimeout(() => {
-          try {
-            localStorage.setItem('mood_history', JSON.stringify(_moodDataByDate));
-            console.log('[MoodPage] Mood saved successfully!');
-          } catch (e) {
-            console.log('[MoodPage] Error saving mood:', e);
-          }
-        }, 0);
-      }
+    const moodValue = moodParam !== null && moodParam !== undefined && `${moodParam}`.length
+      ? Number(moodParam)
+      : null;
+
+    if (moodValue && moodValueMap[moodValue]) {
+      console.log('[MoodPage] Received mood from params:', moodValue);
+      _moodHistoryCache = null;
+      setTodayMood(moodValue);
     }
   },
   build() {
@@ -513,44 +508,22 @@ Page({
     drawGraph.updateDateDisplay = () => debugDateText.setProperty?.(prop.MORE, { text: getDateStr(graphWindowMode) });
     drawGraph.debugDateText = debugDateText;
     const statusText = createWidget(widget.TEXT, { x: PX.x0, y: PX.x25, w: PX.x416, h: PX.x35, color: todayMood ? moodValueMap[todayMood]?.color || 0xffffff : 0xffffff, text_size: PX.x24, align_h: align.CENTER_H, align_v: align.CENTER_V, text: todayMood ? `Today: ${moodValueMap[todayMood]?.name || ''}` : 'Tap your mood!' });
-    const imgWidgets = moods.map((mood, i) => { 
-      const img = createWidget(widget.IMG, { x: px(PX.x45 + i * PX.x68), y: PX.x120, w: PX.x64, h: PX.x64, src: mood.img, alpha: todayMood === mood.value ? 255 : 180 }); 
-      img.addEventListener?.(event.CLICK_DOWN, () => { 
-        // Only allow clearing in week mode (graphWindowMode === 0)
-        if (graphWindowMode !== 0) {
-          // In month mode, just set mood as usual
-          const dateKey = formatDateKey(getDebugDate());
-          _moodHistoryCache = null; 
-          _moodDataByDate[dateKey] = mood.value;
-          statusText.setProperty?.(prop.MORE, { text: `${_debugDayOffset === 0 ? 'Today: ' : ''}${mood.name}`, color: mood.color, text_size: PX.x24 }); 
-          imgWidgets.forEach((w, j) => w.setProperty?.(prop.MORE, { alpha: mood.value === moods[j].value ? 255 : 180 })); 
-          drawGraph(); 
-          scheduleMoodHistorySave();
-          return;
-        }
-        // In week mode, only clear if this is the selected day and mood is already set
-        const dateKey = formatDateKey(getDebugDate());
-        const currentMood = _moodDataByDate[dateKey];
-        if (currentMood === mood.value) {
-          delete _moodDataByDate[dateKey];
-          _moodHistoryCache = null;
-          statusText.setProperty?.(prop.MORE, { text: 'Tap your mood!', color: 0xffffff, text_size: PX.x24 });
-          imgWidgets.forEach((w) => w.setProperty?.(prop.MORE, { alpha: 180 }));
-          drawGraph();
-          scheduleMoodHistorySave();
-        } else {
-          _moodHistoryCache = null; 
-          _moodDataByDate[dateKey] = mood.value;
-          statusText.setProperty?.(prop.MORE, { text: `${_debugDayOffset === 0 ? 'Today: ' : ''}${mood.name}`, color: mood.color, text_size: PX.x24 }); 
-          imgWidgets.forEach((w, j) => w.setProperty?.(prop.MORE, { alpha: mood.value === moods[j].value ? 255 : 180 })); 
-          drawGraph(); 
-          scheduleMoodHistorySave();
-        }
-      }); 
-      return img; 
-    });
+    const imgWidgets = moods.map((mood, i) => { const img = createWidget(widget.IMG, { x: px(PX.x45 + i * PX.x68), y: PX.x120, w: PX.x64, h: PX.x64, src: mood.img, alpha: todayMood === mood.value ? 255 : 180 }); img.addEventListener?.(event.CLICK_DOWN, () => { 
+      // Update memory first (no I/O)
+      _moodHistoryCache = null; 
+      _moodDataByDate[formatDateKey(getDebugDate())] = mood.value;
+      
+      // Update UI right away (dot + status)
+      statusText.setProperty?.(prop.MORE, { text: `${_debugDayOffset === 0 ? 'Today: ' : ''}${mood.name}`, color: mood.color, text_size: PX.x24 }); 
+      imgWidgets.forEach((w, j) => w.setProperty?.(prop.MORE, { alpha: mood.value === moods[j].value ? 255 : 180 })); 
+      drawGraph(); 
+      
+      // Save to storage after (async)
+      scheduleMoodHistorySave();
+    }); return img; });
     debugDateText.addEventListener?.(event.CLICK_DOWN, () => { _debugDayOffset = 0; updateUIAfterDateChange(debugDateText, statusText, imgWidgets); });
     updateMoodButtonsVisibility.imgWidgets = imgWidgets;
+    drawGraph.imgWidgets = imgWidgets;
     const navigateDate = dir => { if (graphWindowMode === 0) _debugDayOffset += dir; else { const curr = _cachedDebugDate && _cachedDebugOffset === _debugDayOffset ? _cachedDebugDate : getDebugDate(), tgtM = curr.getMonth() + dir, tgtY = tgtM < 0 ? curr.getFullYear() - 1 : (tgtM > 11 ? curr.getFullYear() + 1 : curr.getFullYear()), normM = ((tgtM % 12) + 12) % 12, tgtD = Math.min(curr.getDate(), new Date(tgtY, normM + 1, 0).getDate()), tgt = new Date(tgtY, normM, tgtD), now = new Date(); now.setHours(0, 0, 0, 0); tgt.setHours(0, 0, 0, 0); _debugDayOffset = Math.round((tgt.getTime() - now.getTime()) / msPerDay); } updateUIAfterDateChange(debugDateText, statusText, imgWidgets); };
     const leftArrow = createWidget(widget.TEXT, { x: PX.x50, y: PX.x36, w: PX.x80, h: PX.x70, color: 0xff6600, text_size: PX.x78, align_h: align.CENTER_H, align_v: align.CENTER_V, text: '«' });
     leftArrow.addEventListener?.(event.CLICK_DOWN, () => navigateDate(-1));
@@ -570,7 +543,11 @@ Page({
             if (token && token !== _lastClearToken) {
               _lastClearToken = token;
             }
-            refreshMoodDataAndUI();
+            reloadMoodDataFromStorage();
+            if (drawGraph) drawGraph();
+            if (drawGraph && drawGraph.debugDateText && drawGraph.statusText && drawGraph.imgWidgets) {
+              updateUIAfterDateChange(drawGraph.debugDateText, drawGraph.statusText, drawGraph.imgWidgets);
+            }
           } catch (e) {}
         };
       }
@@ -579,30 +556,50 @@ Page({
       const nextToken = token || storedToken;
       if (nextToken && nextToken !== _lastClearToken) {
         _lastClearToken = nextToken;
-        _lastMoodHistorySnapshot = getMoodHistorySnapshot();
-        refreshMoodDataAndUI();
+        reloadMoodDataFromStorage();
+        if (drawGraph) drawGraph();
+        if (drawGraph && drawGraph.debugDateText && drawGraph.statusText && drawGraph.imgWidgets) {
+          updateUIAfterDateChange(drawGraph.debugDateText, drawGraph.statusText, drawGraph.imgWidgets);
+        }
       }
     } catch (e) {}
 
+    if (_clearPollTimer) clearInterval(_clearPollTimer);
+    _clearPollTimer = setInterval(() => {
+      try {
+        const storedToken = getClearedAtToken();
+        if (storedToken && storedToken !== _lastClearToken) {
+          _lastClearToken = storedToken;
+          reloadMoodDataFromStorage();
+          if (drawGraph) drawGraph();
+          if (drawGraph && drawGraph.debugDateText && drawGraph.statusText && drawGraph.imgWidgets) {
+            updateUIAfterDateChange(drawGraph.debugDateText, drawGraph.statusText, drawGraph.imgWidgets);
+          }
+        }
+      } catch (e) {}
+    }, 1000);
   },
   onHide() {
-  },
-  onDestroy() {
+    if (_clearPollTimer) {
+      clearInterval(_clearPollTimer);
+      _clearPollTimer = null;
+    }
     try {
       const app = getApp && getApp();
       if (app && app.globalData && app.globalData.onMoodDataCleared) {
         app.globalData.onMoodDataCleared = null;
       }
     } catch (e) {}
+  },
+  onDestroy() {
     try {
       if (storageWriteTimeout) clearTimeout(storageWriteTimeout), storageWriteTimeout = null;
-      const stored = (() => { try { return localStorage.getItem('mood_history') || ''; } catch { return ''; } })();
-      if (stored === '{}' || stored === '') {
-        return;
-      }
       const clearedAt = getClearedAtToken();
-      if (clearedAt && clearedAt === _lastClearToken) {
-        return;
+      if (clearedAt && clearedAt !== _lastClearToken) {
+        _lastClearToken = clearedAt;
+        if (!Object.keys(_moodDataByDate).length) {
+          return;
+        }
       }
       saveMoodData();
       const d = getItem();

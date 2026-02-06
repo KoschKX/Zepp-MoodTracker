@@ -44,7 +44,42 @@ const moods = [
 ];
 
 Page({
+  _clearPollTimer: null,
+  _lastClearToken: 0,
+  _getClearedAtToken() {
+    try {
+      const v = localStorage.getItem('mood_history_cleared_at');
+      return v ? Number(v) : 0;
+    } catch (e) {
+      return 0;
+    }
+  },
   onInit() {},
+  onShow() {
+    try {
+      const token = this._getClearedAtToken();
+      if (token && token !== this._lastClearToken) {
+        this._lastClearToken = token;
+        try { localStorage.setItem('mood_history', '{}'); } catch (e) {}
+      }
+    } catch (e) {}
+    if (this._clearPollTimer) clearInterval(this._clearPollTimer);
+    this._clearPollTimer = setInterval(() => {
+      try {
+        const token = this._getClearedAtToken();
+        if (token && token !== this._lastClearToken) {
+          this._lastClearToken = token;
+          try { localStorage.setItem('mood_history', '{}'); } catch (e) {}
+        }
+      } catch (e) {}
+    }, 1000);
+  },
+  onHide() {
+    if (this._clearPollTimer) {
+      clearInterval(this._clearPollTimer);
+      this._clearPollTimer = null;
+    }
+  },
   
   build() {
     // Init PX when the page shows up
@@ -108,12 +143,6 @@ Page({
         });
         
         // Jump to mood_page with the mood value (it saves it)
-        try {
-          const app = getApp && getApp();
-          if (app && app.globalData) {
-            app.globalData.selectedMood = mood.value;
-          }
-        } catch (e) {}
         push({ 
           url: 'page/mood_page',
           params: { mood: mood.value }

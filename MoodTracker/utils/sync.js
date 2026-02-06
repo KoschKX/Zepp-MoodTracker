@@ -51,3 +51,18 @@ export const requestMoodDataFromPhone = (log) => {
     return null;
   }
 };
+
+export const pingPhone = (log) => {
+  try {
+    const messageBuilder = getMessageBuilder();
+    if (!messageBuilder?.request) {
+      log && log('MessageBuilder not ready');
+      return null;
+    }
+
+    return messageBuilder.request({ method: 'PING' });
+  } catch (e) {
+    log && log('Error: ' + String(e));
+    return null;
+  }
+};

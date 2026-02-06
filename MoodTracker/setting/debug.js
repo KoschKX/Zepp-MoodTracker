@@ -403,7 +403,7 @@ const initDebug = ({ props, safeGet, getBool }) => {
             ]
           ),
 
-          ...(advanced ? advanced.buildAdvancedUI({ props, viewMode, getReferenceDate, getViewDays, formatDateKey }) : []),
+          ...(advanced ? advanced.buildAdvancedUI({ props, viewMode, getReferenceDate, getViewDays, formatDateKey, getBool }) : []),
           
           Button({
             label: 'Refresh Data',

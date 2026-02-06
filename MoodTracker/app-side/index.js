@@ -142,6 +142,49 @@ AppSideService({
             settings.settingsStorage.setItem('lastTestNotificationResult', 'ERROR: ' + e.message);
           });
         }
+
+        if (key === 'clearMoodAll') {
+          console.log('[APP-SIDE] 🧹 Clear all mood data requested');
+          settings.settingsStorage.setItem('moodData', '{}');
+          messageBuilder.request({
+            method: 'CLEAR_MOOD_DATA_ALL',
+            params: { timestamp: Date.now() }
+          }, { timeout: 5000 })
+          .then(() => console.log('[APP-SIDE] ✅ Clear all sent to watch'))
+          .catch((e) => console.log('[APP-SIDE] ❌ Clear all failed:', e));
+
+          messageBuilder.request({
+            method: 'SYNC_MOOD_DATA',
+            params: '{}'
+          }, { timeout: 5000 })
+          .then(() => console.log('[APP-SIDE] ✅ Sent empty mood data to watch'))
+          .catch((e) => console.log('[APP-SIDE] ❌ Empty mood sync failed:', e));
+        }
+
+        if (key === 'clearMoodRange') {
+          try {
+            const payload = settings.settingsStorage.getItem('clearMoodRange');
+            if (!payload) return;
+            const parsed = JSON.parse(payload);
+            console.log('[APP-SIDE] 🧹 Clear mood range requested');
+            const updatedData = settings.settingsStorage.getItem('moodData') || '{}';
+            messageBuilder.request({
+              method: 'CLEAR_MOOD_DATA_RANGE',
+              params: parsed
+            }, { timeout: 5000 })
+            .then(() => console.log('[APP-SIDE] ✅ Clear range sent to watch'))
+            .catch((e) => console.log('[APP-SIDE] ❌ Clear range failed:', e));
+
+            messageBuilder.request({
+              method: 'SYNC_MOOD_DATA',
+              params: updatedData
+            }, { timeout: 5000 })
+            .then(() => console.log('[APP-SIDE] ✅ Sent updated mood data to watch'))
+            .catch((e) => console.log('[APP-SIDE] ❌ Updated mood sync failed:', e));
+          } catch (e) {
+            console.log('[APP-SIDE] ❌ Clear range parse failed:', e);
+          }
+        }
       });
       console.log('[APP-SIDE] Listening for settings changes');
     } catch (e) {
@@ -178,11 +221,10 @@ AppSideService({
             ctx.response({
               data: { success: false, error: 'No phone data available' }
             });
-          }        } else if (payload.method === 'REQUEST_CONSOLE_LOGS') {
-          console.log('[APP-SIDE] Sending console logs (from browser console)');
-          ctx.response({
-            data: { success: true }
-          });        } else if (payload.method === 'REQUEST_CONSOLE_LOGS') {
+          }
+        } else if (payload.method === 'PING') {
+          ctx.response({ data: { success: true } });
+        } else if (payload.method === 'REQUEST_CONSOLE_LOGS') {
           console.log('[APP-SIDE] Sending console logs');
           ctx.response({
             data: { success: true, logs: logBuffer }

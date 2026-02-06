@@ -1164,7 +1164,7 @@ AppSettingsPage({
         )
         ] : []),
 
-        ...(debug ? debug.buildDebugUI({ viewMode, getReferenceDate, getViewDays, formatDateKey, advanced: Advanced }) : []),
+        ...(debug ? debug.buildDebugUI({ viewMode, getReferenceDate, getViewDays, formatDateKey }) : []),
 
         // Footer
         View(

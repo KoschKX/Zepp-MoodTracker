@@ -108,6 +108,11 @@ const buildAdvancedUI = ({ props, viewMode, getReferenceDate, getViewDays, forma
                 }
 
                 storage.setItem('moodData', JSON.stringify(parsed));
+                storage.setItem('clearMoodRange', JSON.stringify({
+                  referenceDate: referenceDate.toISOString(),
+                  days,
+                  timestamp: Date.now()
+                }));
                 // Manually refresh to see changes
               } catch (e) {
                 // Ignore errors here
@@ -130,6 +135,7 @@ const buildAdvancedUI = ({ props, viewMode, getReferenceDate, getViewDays, forma
             },
             onClick: () => {
               storage.removeItem('moodData');
+              storage.setItem('clearMoodAll', String(Date.now()));
               // Manually refresh the page
             }
           })

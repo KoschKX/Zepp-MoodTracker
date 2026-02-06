@@ -2,7 +2,7 @@ import { createWidget, widget, align, prop } from '@zos/ui';
 import { px } from '@zos/utils';
 import { push } from '@zos/router';
 import { localStorage } from '@zos/storage';
-import { requestMoodDataFromPhone } from '../utils/sync';
+import { requestMoodDataFromPhone, pingPhone } from '../utils/sync';
 
 Page({
   syncLog: [],
