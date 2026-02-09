@@ -32,8 +32,51 @@ App({
     })
 
     messageBuilder.on('request', (ctx) => {
+      let payload;
       try {
-        const payload = messageBuilder.buf2Json(ctx.request.payload)
+        payload = messageBuilder.buf2Json(ctx.request.payload);
+      } catch (e) {
+        ctx.response({ data: { success: false, error: 'Invalid payload' } });
+        return;
+      }
+      // Handle request to open sync page from phone
+      if (payload.method === 'OPEN_SYNC_PAGE') {
+        try {
+          const { push } = require('@zos/router');
+          push({ url: 'page/sync_page' });
+          ctx.response({ data: { success: true } });
+        } catch (e) {
+          ctx.response({ data: { success: false, error: e.message } });
+        }
+        return;
+      }
+      // --- CHUNKED MOOD DATA SYNC ---
+      if (payload.method === 'SYNC_MOOD_DATA_CHUNK') {
+        try {
+          // payload.params should be an object: { "2026-02-01": 3, "2026-02-02": 2, ... }
+          const chunk = payload.params || {};
+          let count = 0;
+          for (const [dateKey, mood] of Object.entries(chunk)) {
+            // Store each day as a separate key for fast access
+            const key = `mood_${dateKey}`;
+            if (mood == null) {
+              try { localStorage.removeItem(key); } catch (e) {}
+            } else {
+              try { localStorage.setItem(key, String(mood)); } catch (e) {}
+            }
+            count++;
+          }
+          // After chunked sync, reload all per-day keys into memory for UI
+          try {
+            require('./page/functions/loadAllPerDayMoodKeys').loadAllPerDayMoodKeys();
+          } catch (e) { console.error('Failed to reload mood data after chunked sync:', e); }
+          ctx.response({ data: { success: true, processed: count } });
+        } catch (e) {
+          ctx.response({ data: { success: false, error: e.message } });
+        }
+        return;
+      }
+      try {
         console.log('[App] ← Request:', payload.method)
 
         if (payload.method === 'GENERATE_SAMPLE_DATA') {
@@ -69,7 +112,7 @@ App({
                 existing[key] = sample[key];
               }
               localStorage.setItem('mood_history', JSON.stringify(existing));
-              // If on mood_page or mood_select, refresh UI as after clear
+              // If on week_page or mood_select, refresh UI as after clear
               const cb = this.globalData.onMoodDataCleared;
               if (cb && typeof cb === 'function') {
                 try { cb(Date.now()); } catch (e) {}
@@ -82,7 +125,7 @@ App({
           return;
         }
 
-        if (payload.method === 'SYNC_MOOD_DATA') {
+        if (payload.method === 'SYNC_MOOD_DATA' || payload.method === 'SYNC_MOOD_DATA_SINGLE') {
           try {
             const dataStr = typeof payload.params === 'string' ? payload.params : JSON.stringify(payload.params || {})
             localStorage.setItem('mood_history', dataStr || '{}')

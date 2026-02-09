@@ -19,6 +19,10 @@ const initDebug = ({ props, safeGet, getBool }) => {
   let debugInfo = '';
   let rawMoodDataForCopy = '';
   let syncLogText = 'No sync attempts logged yet';
+  // Show full mood data and last single mood entry
+  let tempMoodDataBackup = safeGet('moodDataBackup') || '{}';
+  let tempMoodDataSingle = safeGet('moodDataSingle') || '{}';
+  let fullMoodData = safeGet('moodData', '{}');
 
   const log = (msg) => {
     debugInfo += msg;
@@ -273,6 +277,24 @@ const initDebug = ({ props, safeGet, getBool }) => {
                   display: 'block'
                 }
               }, "Storage Status:"),
+              Text({
+                style: {
+                  fontSize: '12px',
+                  color: '#ffcccc',
+                  fontFamily: 'monospace',
+                  display: 'block',
+                  marginBottom: '6px'
+                }
+              }, `Data: ${fullMoodData}`),
+              Text({
+                style: {
+                  fontSize: '12px',
+                  fontFamily: 'monospace',
+                  display: 'block',
+                  marginBottom: '1em',
+                  whiteSpace: 'pre-wrap'
+                }
+              }, ``),
               View({
                 style: {
                   display: 'flex',
@@ -333,142 +355,9 @@ const initDebug = ({ props, safeGet, getBool }) => {
               ))
             ]
           ),
-          
-          // Manual Import Section
-          View(
-            {
-              style: {
-                backgroundColor: '#003300',
-                margin: '20px 0 30px 0',
-                padding: '20px',
-                borderRadius: '8px',
-                border: '1px solid #006600'
-              }
-            },
-            [
-              Text({
-                style: {
-                  fontSize: '14px',
-                  fontWeight: '600',
-                  color: '#00ff00',
-                  marginBottom: '10px',
-                  display: 'block'
-                }
-              }, "Manual Data Import"),
-              TextInput({
-                placeholder: 'Paste JSON here...',
-                style: {
-                  width: '100%',
-                  padding: '8px',
-                  backgroundColor: '#222',
-                  color: '#fff',
-                  border: '1px solid #555',
-                  borderRadius: '4px',
-                  fontSize: '12px',
-                  fontFamily: 'monospace',
-                  marginBottom: '15px',
-                  minHeight: '60px'
-                },
-                onChange: (e) => {
-                  window._importJsonData = e.target.value;
-                }
-              }),
-              Button({
-                label: 'Import Data',
-                style: {
-                  width: '100%',
-                  backgroundColor: '#00cc00',
-                  color: '#000',
-                  border: 'none',
-                  borderRadius: '4px',
-                  padding: '8px',
-                  fontSize: '13px',
-                  fontWeight: '600',
-                  cursor: 'pointer'
-                },
-                onClick: () => {
-                  try {
-                    const jsonData = window._importJsonData;
-                    if (!jsonData) {
-                      return;
-                    }
-                    JSON.parse(jsonData);
-                    storage.setItem('moodData', jsonData);
-                    // Manually refresh the page to see the data
-                  } catch (e) {
-                    // Invalid JSON
-                  }
-                }
-              })
-            ]
-          ),
 
           ...(advanced ? advanced.buildAdvancedUI({ props, viewMode, getReferenceDate, getViewDays, formatDateKey, getBool }) : []),
           
-          Button({
-            label: 'Refresh Data',
-            style: {
-              width: '100%',
-              backgroundColor: '#ff6600',
-              color: '#fff',
-              border: 'none',
-              borderRadius: '8px',
-              padding: '10px 20px',
-              fontSize: '14px',
-              fontWeight: '600',
-              cursor: 'pointer',
-              textAlign: 'center'
-            },
-            onClick: () => {
-              // Manually refresh the browser page to reload data
-            }
-          }),
-          
-          // Test data button
-          Button({
-            label: 'Generate Random Test Data',
-            style: {
-              width: '100%',
-              marginTop: '15px',
-              backgroundColor: '#444',
-              color: '#ccc',
-              border: 'none',
-              borderRadius: '8px',
-              padding: '10px 20px',
-              fontSize: '14px',
-              fontWeight: '600',
-              cursor: 'pointer',
-              textAlign: 'center'
-            },
-            onClick: () => {
-              let existingData = {};
-              try {
-                const stored = storage.getItem('moodData');
-                if (stored && stored !== '{}') {
-                  existingData = JSON.parse(stored);
-                }
-              } catch (e) {
-                // Starting with empty data
-              }
-              
-              const referenceDate = getReferenceDate();
-              const days = getViewDays(referenceDate);
-              
-              for (let i = days - 1; i >= 0; i--) {
-                const date = new Date(referenceDate);
-                date.setDate(date.getDate() - i);
-                const key = formatDateKey(date);
-                existingData[key] = Math.random() < 0.7 ? Math.floor(Math.random() * 5) + 1 : undefined;
-                if (existingData[key] === undefined) {
-                  delete existingData[key];
-                }
-              }
-              
-              storage.setItem('moodData', JSON.stringify(existingData));
-              storage.setItem('lastSync', new Date().toISOString());
-              // Test data generated, reload page to see changes
-            }
-          })
         ]
       )
     ] : [])

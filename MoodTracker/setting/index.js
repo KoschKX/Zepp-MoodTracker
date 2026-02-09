@@ -8,10 +8,40 @@ AppSettingsPage({
     // Heads up: settingsStorage.addListener isn't in the ZeppOS companion
     // App-side storage changes still trigger a refresh when needed
     const storage = props.settingsStorage;
-    // Forward GENERATE_SAMPLE_DATA messages to the app-side (watch)
-    if (typeof window !== 'undefined' && window.onmessage === null) {
+    // Listen for SYNC_MOOD_DATA messages from the app
+    if (typeof window !== 'undefined') {
       window.onmessage = function(event) {
         const msg = event.data;
+        if (msg && (msg.method === 'SYNC_MOOD_DATA' || msg.method === 'SYNC_MOOD_DATA_SINGLE') && msg.params) {
+          // Merge mood data
+          var debugBox = typeof getDebugBox === 'function' ? getDebugBox() : null;
+          var incomingStr = '';
+          if (typeof msg.params === 'string') {
+            incomingStr = msg.params;
+          } else if (typeof msg.params === 'object' && msg.params !== null) {
+            incomingStr = JSON.stringify(msg.params);
+          } else {
+            incomingStr = '{}';
+          }
+          var after = '';
+          var logMsg = msg.method+'\n'+ incomingStr + '\n';
+          if (debugBox && typeof debugBox.append === 'function') {
+            debugBox.append(logMsg);
+          }
+          // Instead of just reloading, send a message to the watch to open the sync page
+          try {
+            if (typeof MessageBuilder !== 'undefined' && MessageBuilder && MessageBuilder.prototype) {
+              const builder = new MessageBuilder();
+              builder.request({
+                method: 'OPEN_SYNC_PAGE',
+                params: {}
+              });
+            }
+          } catch (e) {
+            console.log('[Sync] Failed to send OPEN_SYNC_PAGE to watch:', e);
+          }
+        }
+        // Forward GENERATE_SAMPLE_DATA messages to the app-side (watch)
         if (msg && msg.type === 'GENERATE_SAMPLE_DATA') {
           try {
             if (typeof MessageBuilder !== 'undefined' && MessageBuilder && MessageBuilder.prototype) {
@@ -91,18 +121,15 @@ AppSettingsPage({
     // Read settingsStorage (synced by app-side or manual import)
     try {
       const storedData = props.settingsStorage.getItem('moodData');
-      
       // No data yet
       if (!storedData || storedData === '{}' || storedData === 'null') {
         debug?.log('No data - app-side service may not be running\n');
       } else if (storedData && storedData !== '{}') {
         debug?.setRawMoodData(storedData);
-        debug?.log(`moodData found: ${storedData.length} chars\n`);
-        
+        debug?.log(`Size: ${storedData.length} chars\n`);
         moodDataByDate = JSON.parse(storedData);
         const dateKeys = Object.keys(moodDataByDate);
         debug?.log(`Parsed ${dateKeys.length} date entries\n`);
-        
         if (dateKeys.length > 0) {
           hasRealData = true;
           debug?.log(`Found ${dateKeys.length} mood entries\n`);
@@ -893,7 +920,8 @@ AppSettingsPage({
             console.log('[getCurrentViewRange] generateMoodDataForView result:', result);
             const { startDate, endDate } = result;
             return { startDate, endDate };
-          }
+          },
+          debug: DEBUG_MODE
         }) : []),
 
         // Toggle for extra info

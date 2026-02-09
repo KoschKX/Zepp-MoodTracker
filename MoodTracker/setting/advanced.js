@@ -75,57 +75,6 @@ const buildAdvancedUI = ({ props, viewMode, referenceDate, getReferenceDate, get
             }
           }, `Clear all mood data for the ${viewMode} window currently shown in the graph`),
           Button({
-            label: 'Generate Sample Data',
-            style: {
-              width: '100%',
-              backgroundColor: '#0099ff',
-              color: '#fff',
-              border: 'none',
-              borderRadius: '4px',
-              padding: '8px',
-              fontSize: '13px',
-              fontWeight: '600',
-              cursor: 'pointer',
-              marginBottom: '10px'
-            },
-            onClick: () => {
-              // Generate random mood data for the current view range
-              const range = typeof getCurrentViewRange === 'function' ? getCurrentViewRange() : {};
-              const { startDate, endDate } = range;
-              if (!startDate || !endDate) {
-                console.log('[SampleData] No start/end date:', startDate, endDate);
-                return;
-              }
-              // Merge with existing moodData
-              let parsed = {};
-              const storedData = storage.getItem('moodData');
-              if (storedData && storedData !== '{}' && storedData !== 'null') {
-                try { parsed = JSON.parse(storedData); } catch (e) {}
-              }
-              let date = new Date(startDate);
-              const sample = {};
-              while (date <= endDate) {
-                const key = formatDateKey(date);
-                sample[key] = Math.random() < 0.7 ? Math.floor(Math.random() * 5) + 1 : 0;
-                parsed[key] = sample[key];
-                date.setDate(date.getDate() + 1);
-              }
-              // Save merged data to settingsStorage (phone)
-              storage.setItem('moodData', JSON.stringify(parsed));
-              // Also trigger sync to watch
-              const msPerDay = 24 * 60 * 60 * 1000;
-              const days = Math.round((endDate - startDate) / msPerDay) + 1;
-              const payload = {
-                data: sample,
-                startDate: startDate.toISOString(),
-                endDate: endDate.toISOString(),
-                days
-              };
-              storage.setItem('generateSampleData', JSON.stringify(payload));
-              console.log('[SampleData] generateSampleData payload set:', payload);
-            }
-          }),
-          Button({
             label: `Clear ${viewMode.charAt(0).toUpperCase() + viewMode.slice(1)} Data`,
             style: {
               width: '100%',
@@ -210,6 +159,69 @@ const buildAdvancedUI = ({ props, viewMode, referenceDate, getReferenceDate, get
               storage.removeItem('moodData');
               storage.setItem('clearMoodAll', String(Date.now()));
               // Manually refresh the page
+            }
+          }),
+          // Debug label
+          Text({
+            style: {
+              fontSize: '15px',
+              fontWeight: '600',
+              color: '#c00000',
+              margin: '18px 0 8px 0',
+              display: 'block',
+              textAlign: 'left'
+            }
+          }, 'Debug'),
+          // Generate Sample Data button (moved under Debug)
+          Button({
+            label: 'Generate Sample Data',
+            style: {
+              width: '100%',
+              backgroundColor: '#0099ff',
+              color: '#fff',
+              border: 'none',
+              borderRadius: '4px',
+              padding: '8px',
+              fontSize: '13px',
+              fontWeight: '600',
+              cursor: 'pointer',
+              marginBottom: '10px'
+            },
+            onClick: () => {
+              // Generate random mood data for the current view range
+              const range = typeof getCurrentViewRange === 'function' ? getCurrentViewRange() : {};
+              const { startDate, endDate } = range;
+              if (!startDate || !endDate) {
+                console.log('[SampleData] No start/end date:', startDate, endDate);
+                return;
+              }
+              // Merge with existing moodData
+              let parsed = {};
+              const storedData = storage.getItem('moodData');
+              if (storedData && storedData !== '{}' && storedData !== 'null') {
+                try { parsed = JSON.parse(storedData); } catch (e) {}
+              }
+              let date = new Date(startDate);
+              const sample = {};
+              while (date <= endDate) {
+                const key = formatDateKey(date);
+                sample[key] = Math.random() < 0.7 ? Math.floor(Math.random() * 5) + 1 : 0;
+                parsed[key] = sample[key];
+                date.setDate(date.getDate() + 1);
+              }
+              // Save merged data to settingsStorage (phone)
+              storage.setItem('moodData', JSON.stringify(parsed));
+              // Also trigger sync to watch
+              const msPerDay = 24 * 60 * 60 * 1000;
+              const days = Math.round((endDate - startDate) / msPerDay) + 1;
+              const payload = {
+                data: sample,
+                startDate: startDate.toISOString(),
+                endDate: endDate.toISOString(),
+                days
+              };
+              storage.setItem('generateSampleData', JSON.stringify(payload));
+              console.log('[SampleData] generateSampleData payload set:', payload);
             }
           })
         ]

@@ -123,28 +123,23 @@ Page({
       
       imgWidget.addEventListener && imgWidget.addEventListener(event.CLICK_DOWN, () => {
         console.log('Clicked mood:', mood.value);
-        
         // Show selected smiley at full opacity
         imgWidget.setProperty && imgWidget.setProperty(prop.MORE, { alpha: 255 });
-        
         // Hide all mood buttons right away
         moodWidgets.forEach((widget) => {
           widget.setProperty && widget.setProperty(prop.MORE, { alpha: 0 });
         });
-        
         // Hide X button by clearing its text
         skipButton.setProperty && skipButton.setProperty(prop.MORE, { text: '' });
-        
         // Switch status text to loading
         statusText.setProperty && statusText.setProperty(prop.MORE, { 
           text: '...',
           y: px.y172,
           text_size: px.size36
         });
-        
-        // Jump to mood_page with the mood value (it saves it)
+        // Jump to week_page with the mood value (it saves it)
         push({ 
-          url: 'page/mood_page',
+          url: 'page/week_page',
           params: { mood: mood.value }
         });
       });
@@ -169,7 +164,7 @@ Page({
         text_size: PX.size36
       });
       
-      // Go to mood_page without params
+      // Go to week_page without params
       push({ url: 'page/mood_page' });
     });
   }

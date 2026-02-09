@@ -213,9 +213,30 @@ AppSideService({
         const payload = messageBuilder.buf2Json(ctx.request.payload);
         const receivedTime = new Date().toISOString();
         console.log('[APP-SIDE] ← Request:', payload.method);
-        if (payload.method === 'SYNC_MOOD_DATA') {
-          settings.settingsStorage.setItem('moodData', payload.params);
+        if (payload.method === 'SYNC_MOOD_DATA_SINGLE') {
+          let oldData = settings.settingsStorage.getItem('moodData') || '{}';
+          let incomingStr = payload.params || '{}';
+          let merged = '{}';
+          try {
+            let oldObj = JSON.parse(oldData);
+            let newObj = typeof incomingStr === 'string' ? JSON.parse(incomingStr) : incomingStr;
+            Object.keys(newObj).forEach(function(dateKey) {
+              oldObj[dateKey] = typeof newObj[dateKey] === 'string' ? Number(newObj[dateKey]) : newObj[dateKey];
+            });
+            merged = JSON.stringify(oldObj);
+          } catch (e) {
+            merged = incomingStr;
+          }
+          settings.settingsStorage.setItem('moodData', merged);
+          settings.settingsStorage.setItem('moodDataBackup', oldData);
+          settings.settingsStorage.setItem('moodDataSingle', payload.params);
           settings.settingsStorage.setItem('lastSync', receivedTime);
+          ctx.response({
+            data: { success: true, time: receivedTime }
+          });
+        } else if (payload.method === 'SYNC_MOOD_DATA') {
+          let incomingStr = payload.params || '{}';
+          settings.settingsStorage.setItem('moodData', incomingStr);
           ctx.response({
             data: { success: true, time: receivedTime }
           });

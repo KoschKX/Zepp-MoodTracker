@@ -7,7 +7,7 @@ const getMessageBuilder = () => {
   }
 };
 
-export const sendMoodDataToPhone = (data, log) => {
+export const sendMoodDataToPhone = (data, single = true, log = '') => {
   try {
     const messageBuilder = getMessageBuilder();
     if (!messageBuilder?.request) {
@@ -15,7 +15,10 @@ export const sendMoodDataToPhone = (data, log) => {
       return null;
     }
 
-    const result = messageBuilder.request({ method: 'SYNC_MOOD_DATA', params: data });
+    let method = 'SYNC_MOOD_DATA';
+	  if(single) { method = 'SYNC_MOOD_DATA_SINGLE'; }	
+
+    const result = messageBuilder.request({ method: method, params: data });
 
     if (result?.then) {
       result
