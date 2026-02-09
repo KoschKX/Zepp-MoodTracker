@@ -1,3 +1,5 @@
+import * as globals from '../page/globals';
+
 const getMessageBuilder = () => {
   try {
     const app = getApp();
@@ -18,6 +20,10 @@ export const sendMoodDataToPhone = (data, single = true, log = '') => {
 
     let method = 'SYNC_MOOD_DATA';
 	  if(single) { method = 'SYNC_MOOD_DATA_SINGLE'; }	
+
+    if (globals.ENABLE_COMPRESSION_OUTGOING && !single) {
+      data = compress(data);
+    }
 
     const result = messageBuilder.request({ method: method, params: data });
 

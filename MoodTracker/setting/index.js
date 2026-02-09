@@ -1,3 +1,6 @@
+
+const compression = require('../utils/compression');
+
 const DEBUG_MODE = true;
 const Debug = DEBUG_MODE ? require('./debug') : null;
 const ADVANCED_MODE = true;
@@ -13,7 +16,32 @@ AppSettingsPage({
       window.onmessage = function(event) {
         const msg = event.data;
         if (msg && (msg.method === 'SYNC_MOOD_DATA' || msg.method === 'SYNC_MOOD_DATA_SINGLE') && msg.params) {
-          
+          let incoming = msg.params;
+          // If incoming is a string that looks like an object, parse it
+          if (typeof incoming === 'string') {
+            try {
+              const parsed = JSON.parse(incoming);
+              if (typeof parsed === 'object' && parsed !== null) {
+                incoming = parsed;
+              }
+            } catch (e) {}
+          }
+          // Now incoming is an object, use it directly for storage or display
+          // Example: store in settingsStorage
+          try {
+            if (typeof incoming === 'object' && incoming !== null) {
+              // Merge or replace as needed
+              props.settingsStorage.setItem('moodData', JSON.stringify(incoming));
+            }
+          } catch (e) {
+            console.log('Failed to store moodData:', e);
+          }
+          // Optionally log for debug
+          if (typeof incoming === 'object') {
+            console.log('Single Data:', JSON.stringify(incoming));
+          } else {
+            console.log('Single Data:', incoming);
+          }
         }
         // Forward GENERATE_SAMPLE_DATA messages to the app-side (watch)
         if (msg && msg.type === 'GENERATE_SAMPLE_DATA') {
@@ -31,6 +59,17 @@ AppSettingsPage({
           }
         }
       };
+    }
+
+
+    const logCompressedSize = (data) => {
+      try {
+        const str = JSON.stringify(data);
+        const compressed = compression.compress(str);
+        return `Compressed size: ${compressed.length} chars\n`;
+      } catch (e) {
+        return 'Compression error: ' + e + '\n';
+      }
     }
     const safeGet = (key, fallback, parser) => {
       try {
@@ -118,6 +157,9 @@ AppSettingsPage({
         }
         debug?.setRawMoodData(JSON.stringify(nested));
         debug?.log(`Size: ${JSON.stringify(nested).length} chars\n`);
+        // Log gzipped size
+        
+        debug?.log(logCompressedSize(nested));
         moodDataByDate = nested;
         // Count total entries in nested format
         let entryCount = 0;

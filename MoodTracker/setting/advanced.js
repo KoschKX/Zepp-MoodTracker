@@ -158,8 +158,10 @@ const buildAdvancedUI = ({ props, viewMode, referenceDate, getReferenceDate, get
                 // Send clear command to watch (using referenceDate and days)
                 if (window && window.postMessage) {
                   const msg = { type: 'CLEAR_MOOD_DATA_RANGE', referenceDate: endDate.toISOString(), days };
-                  window.postMessage(msg, '*');
-                  console.log('[ClearSection] postMessage:', msg);
+                  const gzipped = pako.gzip(JSON.stringify(msg));
+                  // Send both original and gzipped for compatibility
+                  window.postMessage({ ...msg, gzipped }, '*');
+                  console.log('[ClearSection] postMessage (gzipped):', gzipped);
                 }
               } catch (e) {
                 console.log('[ClearSection] Exception:', e);

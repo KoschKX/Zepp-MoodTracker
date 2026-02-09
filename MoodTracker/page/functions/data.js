@@ -1,4 +1,5 @@
-// Convert flat {YYYY-MM-DD: value} to nested {YYYY: {MM: {DD: value}}}
+import { compress } from '../../utils/compression.js';
+
 export function toNested(obj) {
 	if (!obj || typeof obj !== 'object') return {};
 	const nested = {};
@@ -66,28 +67,34 @@ export const unsetTodayMood = () => {
 };
 
 export function sendDataToPhone(dt = null) {
-    const vis = getVis();
-    const log = (msg, isError) => globals.DEBUG_MODE && (isError ? vis.error(msg) : vis.log(msg));
-    log('=== SYNC START ===');
-    let data = getItem();
+	const vis = getVis();
+	const log = (msg, isError) => globals.DEBUG_MODE && (isError ? vis.error(msg) : vis.log(msg));
+	log('=== SYNC START ===');
+	let data = getItem();
 	if(dt != null) { data = dt; }
-    log('Data size: ' + data.length);
-    sendMoodDataToPhone(data, true, log);
+	sendMoodDataToPhone(data, true, log);
 }
 
 export const syncToSettingsStorage = (data, params, single=false) => {
 	let method = 'SYNC_MOOD_DATA';
-	if(single) { method = 'SYNC_MOOD_DATA_SINGLE'; }	
-    try {
-        const app = getApp && getApp();
-        if (app && app.globalData && app.globalData.messageBuilder) {
-            const moodHistory = typeof data === 'object' ? data : {};
-            app.globalData.messageBuilder.request({
-                method: method,
-                params:  params
-            });
-        }
-    } catch (e) {}
+	if(single) { method = 'SYNC_MOOD_DATA_SINGLE'; }
+	try {
+		const app = getApp && getApp();
+		if (app && app.globalData && app.globalData.messageBuilder) {
+			const moodHistory = typeof data === 'object' ? data : {};
+			let finalParams = params;
+			if (typeof finalParams === 'object') {
+				finalParams = JSON.stringify(finalParams);
+			}
+			if (globals.ENABLE_COMPRESSION_OUTGOING && single && typeof finalParams === 'string') {
+				finalParams = compress(finalParams);
+			}
+			app.globalData.messageBuilder.request({
+				method: method,
+				params: finalParams
+			});
+		}
+	} catch (e) {}
 	// --- Robust getApp fallback ---
 	function getAppFallback() {
 	  if (typeof getApp === 'function') return getApp();
@@ -217,21 +224,20 @@ export function checkMoodParam(params) {
 		}
 	  }
 	} catch (e) {}
-		if (moodValue != null && `${moodValue}`.length) {
-			const moodNum = Number(moodValue);
-			const today = new Date();
-			const dateKey = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
-			if (!Number.isNaN(moodNum) && moodNum !== 0) {
-				state.setMoodHistoryByDate(dateKey, moodNum);
-			} else if (!Number.isNaN(moodNum) && moodNum === 0) {
-				// Remove the entry if it exists
-				state.unsetMoodHistoryByDate(dateKey);
-			}
-			setTimeout(() => {
-				localStorage.setItem('mood_history', state.getMoodHistoryStringByDate());
-				sendMoodDataToPhone(state.getMoodHistoryStringByDate(), true, log);
-			}, 0);
+	if (moodValue != null && `${moodValue}`.length) {
+		const moodNum = Number(moodValue);
+		const today = new Date();
+		const dateKey = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+		if (!Number.isNaN(moodNum) && moodNum !== 0) {
+			state.setMoodHistoryByDate(dateKey, moodNum);
+		} else if (!Number.isNaN(moodNum) && moodNum === 0) {
+			state.unsetMoodHistoryByDate(dateKey);
 		}
+		setTimeout(() => {
+			localStorage.setItem('mood_history', state.getMoodHistoryStringByDate());
+			sendMoodDataToPhone(state.getMoodHistoryStringByDate(), true, log);
+		}, 0);
+	}
 }
 
 

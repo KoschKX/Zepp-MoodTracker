@@ -1,3 +1,4 @@
+
 // --- SETTINGS ---
 export const DEBUG_MODE = false;
 export const SHOW_INTERPOLATION_DOTS = true;
@@ -17,7 +18,11 @@ export const SHOW_LOADING_INDICATOR = true;
 export const SKIP_UI_UPDATES_DURING_NAV = true;
 export const ATTACH_DOT_TAP_EVENTS = true;
 
-// --- Mood constants ---
+// --- GZIP SETTINGS ---
+export const ENABLE_COMPRESSION_OUTGOING = true; 
+export const ENABLE_COMPRESSION_INCOMING = true;
+
+// --- MOODS ---
 export const moods = [
 	{ value: 5, name: 'Great', color: 0x8be000, img: 'smiley_great.png' },
 	{ value: 4, name: 'Good', color: 0x00d8c3, img: 'smiley_good.png' },
@@ -27,7 +32,7 @@ export const moods = [
 ];
 export const moodValueMap = moods.reduce((map, mood) => { map[mood.value] = mood; return map; }, {});
 
-// --- Month names ---
+// --- MONTHS ---
 export const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 export const monthNamesAbv = [
 	'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',

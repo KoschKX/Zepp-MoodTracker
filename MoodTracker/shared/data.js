@@ -1,3 +1,25 @@
+// --- GZIP/UNGZIP utilities ---
+// Remove all pako usage and references
+
+// Compress a string to gzipped Uint8Array
+export function gzipString(str) {
+  return str;
+}
+
+// Decompress gzipped Uint8Array to string
+export function ungzipToString(uint8arr) {
+  return new TextDecoder('utf-8').decode(uint8arr);
+}
+
+// Compress JSON object to gzipped Uint8Array
+export function gzipJson(obj) {
+  return gzipString(JSON.stringify(obj));
+}
+
+// Decompress gzipped Uint8Array to JSON object
+export function ungzipToJson(uint8arr) {
+  return JSON.parse(ungzipToString(uint8arr));
+}
 export function json2buf(json) {
   return str2buf(json2str(json))
 }

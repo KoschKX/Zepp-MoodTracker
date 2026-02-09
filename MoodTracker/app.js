@@ -1,3 +1,5 @@
+import { compress, decompress } from './utils/compression.js';
+import * as globals from './page/globals';
 import './shared/device-polyfill'
 import { MessageBuilder } from './shared/message'
 import { getPackageInfo } from '@zos/app'
@@ -130,8 +132,17 @@ App({
           const { deepMergeNoZero } = require('./page/functions/data');
           try {
             let incoming = payload.params;
-            if (typeof incoming === 'string') {
-              try { incoming = JSON.parse(incoming); } catch {}
+            if (globals.ENABLE_COMPRESSION_INCOMING) {
+              if (payload.method === 'SYNC_MOOD_DATA' && typeof incoming === 'string') {
+                try {
+                  incoming = decompress(incoming);
+                  incoming = JSON.parse(incoming);
+                } catch {}
+              }
+            } else {
+              if (typeof incoming === 'string') {
+                try { incoming = JSON.parse(incoming); } catch {}
+              }
             }
             let existing = {};
             try {
@@ -143,7 +154,6 @@ App({
             // Always convert both to nested format before merging
             const existingNested = toNested(existing);
             const incomingNested = toNested(incoming || {});
-            
             const merged = deepMergeNoZero(existingNested, incomingNested);
             localStorage.setItem('mood_history', JSON.stringify(merged));
           } catch (e) {
