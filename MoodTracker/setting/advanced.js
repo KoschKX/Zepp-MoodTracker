@@ -114,12 +114,37 @@ const buildAdvancedUI = ({ props, viewMode, referenceDate, getReferenceDate, get
                 let date = new Date(startDate);
                 while (date <= endDate) {
                   const key = formatDateKey(date);
-                  delete parsed[key];
-                  console.log('[ClearSection] Deleting key:', key);
+                  // Remove flat key
+                  if (parsed[key] !== undefined) delete parsed[key];
+                  // Remove nested key (use non-padded month/day)
+                  const y = String(date.getFullYear());
+                  const m = String(date.getMonth() + 1);
+                  const d = String(date.getDate());
+                  if (parsed[y] && parsed[y][m] && parsed[y][m][d] !== undefined) {
+                    delete parsed[y][m][d];
+                    if (Object.keys(parsed[y][m]).length === 0) delete parsed[y][m];
+                    if (Object.keys(parsed[y]).length === 0) delete parsed[y];
+                  }
+                  console.log('[ClearSection] Deleting key:', key, '| nested:', y, m, d);
                   date.setDate(date.getDate() + 1);
                 }
+                // Clean up any empty year/month objects left behind (full sweep)
+                for (const y of Object.keys(parsed)) {
+                  if (/^\d{4}$/.test(y) && typeof parsed[y] === 'object') {
+                    for (const m of Object.keys(parsed[y])) {
+                      if (typeof parsed[y][m] === 'object' && Object.keys(parsed[y][m]).length === 0) {
+                        delete parsed[y][m];
+                      }
+                    }
+                    if (Object.keys(parsed[y]).length === 0) {
+                      delete parsed[y];
+                    }
+                  }
+                }
                 storage.setItem('moodData', JSON.stringify(parsed));
-                console.log('[ClearSection] settingsStorage.moodData (after):', JSON.stringify(parsed));
+                const after = storage.getItem('moodData');
+                console.log('[ClearSection] settingsStorage.moodData (after):', after);
+                
                 // Calculate days between startDate and endDate (inclusive)
                 const msPerDay = 24 * 60 * 60 * 1000;
                 const days = Math.round((endDate - startDate) / msPerDay) + 1;
@@ -138,6 +163,10 @@ const buildAdvancedUI = ({ props, viewMode, referenceDate, getReferenceDate, get
                 }
               } catch (e) {
                 console.log('[ClearSection] Exception:', e);
+              }
+              // Force UI refresh after clearing
+              if (typeof window !== 'undefined' && window.location && window.location.reload) {
+                setTimeout(() => window.location.reload(), 200);
               }
             }
           }),
@@ -205,8 +234,11 @@ const buildAdvancedUI = ({ props, viewMode, referenceDate, getReferenceDate, get
               const sample = {};
               while (date <= endDate) {
                 const key = formatDateKey(date);
-                sample[key] = Math.random() < 0.7 ? Math.floor(Math.random() * 5) + 1 : 0;
-                parsed[key] = sample[key];
+                const value = Math.random() < 0.7 ? Math.floor(Math.random() * 5) + 1 : 0;
+                if (value !== 0) {
+                  sample[key] = value;
+                  parsed[key] = value;
+                }
                 date.setDate(date.getDate() + 1);
               }
               // Save merged data to settingsStorage (phone)

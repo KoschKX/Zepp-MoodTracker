@@ -172,7 +172,7 @@ export function drawGraph(skipDots = false) {
       let dotPoolIdx = 0;
       for (let dayIdx = 0; dayIdx < windowSize; dayIdx++) {
         const mood = moodData[dayIdx]?.mood;
-        if (mood && globals.moodValueMap[mood]) {
+        if (typeof mood === 'number' && globals.moodValueMap[mood]) {
           const dot = drawGraph.dotPool[dotPoolIdx++];
           if (dot && dot.addEventListener) {
             dot.addEventListener(event.CLICK_DOWN, handleTapEvent);
@@ -288,7 +288,7 @@ export function drawGraph(skipDots = false) {
     const createDot = (size, z) => { const dot = createWidget(widget.TEXT, { x: PX.x0, y: PX.neg100, w: PX.x16, h: PX.x16, color: 0x000000, text_size: size, align_h: align.CENTER_H, align_v: align.CENTER_V, text: '●' }); dot.setProperty?.(prop.MORE, { z }); return dot; };
     const pxDotSize = px(8);
     if (!drawGraph.dotPool) drawGraph.dotPool = [];
-    let dotsNeeded = moodData.filter(d => d.mood).length;
+    let dotsNeeded = moodData.filter(d => typeof d.mood === 'number').length;
     // Only create new dots if needed, never recreate
     while (drawGraph.dotPool.length < dotsNeeded && drawGraph.dotPool.length < windowSize) {
       drawGraph.dotPool.push(createDot(pxDotSize, 100));
@@ -299,7 +299,7 @@ export function drawGraph(skipDots = false) {
     const shouldHideDots = state.getIsNavigating() && ((getGraphWindowMode() === 0 && globals.HIDE_DOTS_DURING_NAV_WEEK) || (getGraphWindowMode() === 1 && globals.HIDE_DOTS_DURING_NAV_MONTH));
     for (let dayIdx = 0; dayIdx < windowSize; dayIdx++) {
       const mood = moodData[dayIdx].mood;
-      if (mood && globals.moodValueMap[mood]) {
+      if (typeof mood === 'number' && globals.moodValueMap[mood]) {
         const dot = drawGraph.dotPool[dotPoolIdx++], moodObj = globals.moodValueMap[mood], cy = cyMap[mood], cx = graphLeft + dayIdx * stripeWidth + halfStripe;
         
         // Only update if changed (avoid JSON.stringify for perf)
@@ -470,13 +470,13 @@ export const refreshMoodDataAndUI = () => {
         clearTimeout(storageWriteTimeout);
         storageWriteTimeout = null;
     }
-    _interpolationEnabled = false;
+    state.setInterpolationEnabled(false);
     _moodDataByDate = {};
     data.reloadMoodDataFromStorage();
-    _moodHistoryCache = null;
-    _moodHistoryCacheKey = null;
-    _moodHistoryCache = null;
-    _prevDisplayedMood = null;
+    state.setMoodHistoryCache(null);
+    state.setMoodHistoryCacheKey(null);
+    state.setMoodHistoryCache(null);
+    state.setPrevDisplayedMood(null);
     if (_loadingText) _loadingText.setProperty?.(prop.MORE, { y: px(226) });
     if (drawGraph) drawGraph(true);
     if (drawGraph && drawGraph.debugDateText && drawGraph.statusText && imgWidgets) {
@@ -484,7 +484,7 @@ export const refreshMoodDataAndUI = () => {
     }
     setTimeout(() => {
         try {
-        _interpolationEnabled = true;
+        state.setInterpolationEnabled(true);
         drawGraph && graph.drawGraph();
         _loadingText?.setProperty?.(prop.MORE, { y: px(-100) });
         } catch (e) {}

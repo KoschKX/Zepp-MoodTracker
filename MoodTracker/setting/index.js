@@ -13,33 +13,7 @@ AppSettingsPage({
       window.onmessage = function(event) {
         const msg = event.data;
         if (msg && (msg.method === 'SYNC_MOOD_DATA' || msg.method === 'SYNC_MOOD_DATA_SINGLE') && msg.params) {
-          // Merge mood data
-          var debugBox = typeof getDebugBox === 'function' ? getDebugBox() : null;
-          var incomingStr = '';
-          if (typeof msg.params === 'string') {
-            incomingStr = msg.params;
-          } else if (typeof msg.params === 'object' && msg.params !== null) {
-            incomingStr = JSON.stringify(msg.params);
-          } else {
-            incomingStr = '{}';
-          }
-          var after = '';
-          var logMsg = msg.method+'\n'+ incomingStr + '\n';
-          if (debugBox && typeof debugBox.append === 'function') {
-            debugBox.append(logMsg);
-          }
-          // Instead of just reloading, send a message to the watch to open the sync page
-          try {
-            if (typeof MessageBuilder !== 'undefined' && MessageBuilder && MessageBuilder.prototype) {
-              const builder = new MessageBuilder();
-              builder.request({
-                method: 'OPEN_SYNC_PAGE',
-                params: {}
-              });
-            }
-          } catch (e) {
-            console.log('[Sync] Failed to send OPEN_SYNC_PAGE to watch:', e);
-          }
+          
         }
         // Forward GENERATE_SAMPLE_DATA messages to the app-side (watch)
         if (msg && msg.type === 'GENERATE_SAMPLE_DATA') {
@@ -114,25 +88,48 @@ AppSettingsPage({
     };
     const getMoodColor = (mood) => moodColors[mood] || '#222';
 
-    // Pull mood data from storage
+    // Pull mood data from storage (nested year->month->day format)
     let moodDataByDate = {};
     let hasRealData = false;
-    
-    // Read settingsStorage (synced by app-side or manual import)
     try {
       const storedData = props.settingsStorage.getItem('moodData');
-      // No data yet
+      function toNested(obj) {
+        let nested = {};
+        for (const key in obj) {
+          if (/^\d{4}-\d{2}-\d{2}$/.test(key)) {
+            const [y, m, d] = key.split('-');
+            if (!nested[y]) nested[y] = {};
+            if (!nested[y][String(Number(m))]) nested[y][String(Number(m))] = {};
+            nested[y][String(Number(m))][String(Number(d))] = obj[key];
+          } else if (/^\d{4}$/.test(key)) {
+            nested[key] = obj[key];
+          }
+        }
+        return nested;
+      }
       if (!storedData || storedData === '{}' || storedData === 'null') {
         debug?.log('No data - app-side service may not be running\n');
       } else if (storedData && storedData !== '{}') {
-        debug?.setRawMoodData(storedData);
-        debug?.log(`Size: ${storedData.length} chars\n`);
-        moodDataByDate = JSON.parse(storedData);
-        const dateKeys = Object.keys(moodDataByDate);
-        debug?.log(`Parsed ${dateKeys.length} date entries\n`);
-        if (dateKeys.length > 0) {
+        let parsed = JSON.parse(storedData);
+        let nested = toNested(parsed);
+        // If any flat keys were present, update storage to nested only
+        if (JSON.stringify(parsed) !== JSON.stringify(nested)) {
+          props.settingsStorage.setItem('moodData', JSON.stringify(nested));
+        }
+        debug?.setRawMoodData(JSON.stringify(nested));
+        debug?.log(`Size: ${JSON.stringify(nested).length} chars\n`);
+        moodDataByDate = nested;
+        // Count total entries in nested format
+        let entryCount = 0;
+        for (const y in moodDataByDate) {
+          for (const m in moodDataByDate[y]) {
+            entryCount += Object.keys(moodDataByDate[y][m]).length;
+          }
+        }
+        debug?.log(`Parsed ${entryCount} mood entries\n`);
+        if (entryCount > 0) {
           hasRealData = true;
-          debug?.log(`Found ${dateKeys.length} mood entries\n`);
+          debug?.log(`Found ${entryCount} mood entries\n`);
         }
       } else {
         debug?.log('No moodData in settingsStorage\n');
@@ -147,6 +144,14 @@ AppSettingsPage({
     }
 
     // Build mood data array for the current view
+    // Helper to get mood value from nested structure
+    const getMoodValue = (y, m, d) => {
+      y = String(Number(y));
+      m = String(Number(m));
+      d = String(Number(d));
+      return moodDataByDate?.[y]?.[m]?.[d] || 0;
+    };
+
     const generateMoodDataForView = (explicitViewMode, explicitReferenceDate) => {
       const mode = explicitViewMode !== undefined ? explicitViewMode : viewMode;
       const referenceDate = explicitReferenceDate !== undefined ? explicitReferenceDate : getReferenceDate();
@@ -181,7 +186,8 @@ AppSettingsPage({
       for (let i = 0; i < days; i++) {
         const date = new Date(startDate);
         date.setDate(startDate.getDate() + i);
-        moodArray.push(moodDataByDate[formatDateKey(date)] || 0);
+        const y = date.getFullYear(), m = date.getMonth() + 1, d = date.getDate();
+        moodArray.push(getMoodValue(y, m, d));
       }
       return { moodArray, referenceDate, startDate, endDate };
     };

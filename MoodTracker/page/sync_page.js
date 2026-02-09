@@ -15,7 +15,6 @@ Page({
 
   onInit(params) {
     this.syncLog = [];
-    console.log('[sync_page] onInit params:', params);
     let target = 'page/mood_select';
     let force = false;
     if (params && typeof params === 'object' && params.targetPage) {
@@ -31,7 +30,7 @@ Page({
           force = parsed.forceSync;
         }
       } catch (e) {
-        console.log('[sync_page] Params is not valid JSON:', params);
+        
       }
     }
     targetPage = target;

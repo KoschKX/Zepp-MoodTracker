@@ -126,29 +126,38 @@ App({
         }
 
         if (payload.method === 'SYNC_MOOD_DATA' || payload.method === 'SYNC_MOOD_DATA_SINGLE') {
+          const { toNested } = require('./page/functions/data');
+          const { deepMergeNoZero } = require('./page/functions/data');
           try {
-            const dataStr = typeof payload.params === 'string' ? payload.params : JSON.stringify(payload.params || {})
-            localStorage.setItem('mood_history', dataStr || '{}')
+            let incoming = payload.params;
+            if (typeof incoming === 'string') {
+              try { incoming = JSON.parse(incoming); } catch {}
+            }
+            let existing = {};
+            try {
+              const stored = localStorage.getItem('mood_history');
+              if (stored && stored !== '{}' && stored !== 'null') {
+                existing = JSON.parse(stored);
+              }
+            } catch (e) {}
+            // Always convert both to nested format before merging
+            const existingNested = toNested(existing);
+            const incomingNested = toNested(incoming || {});
+            
+            const merged = deepMergeNoZero(existingNested, incomingNested);
+            localStorage.setItem('mood_history', JSON.stringify(merged));
           } catch (e) {
-            localStorage.setItem('mood_history', '{}')
+            localStorage.setItem('mood_history', '{}');
           }
-          let data = {}
-          try {
-            const stored = localStorage.getItem('mood_history')
-            data = stored ? JSON.parse(stored) : {}
-          } catch (e) {
-            data = {}
-          }
-          // ...existing code...
-          const clearedAt = Date.now()
-          localStorage.setItem('mood_history_cleared_at', String(clearedAt))
-          this.globalData.moodDataClearedAt = clearedAt
-          const cb = this.globalData.onMoodDataCleared
+          const clearedAt = Date.now();
+          localStorage.setItem('mood_history_cleared_at', String(clearedAt));
+          this.globalData.moodDataClearedAt = clearedAt;
+          const cb = this.globalData.onMoodDataCleared;
           if (cb && typeof cb === 'function') {
-            try { cb(clearedAt) } catch (e) {}
+            try { cb(clearedAt); } catch (e) {}
           }
-          ctx.response({ data: { success: true } })
-          return
+          ctx.response({ data: { success: true } });
+          return;
         }
 
         if (payload.method === 'CLEAR_MOOD_DATA_ALL') {
@@ -167,7 +176,6 @@ App({
 
         if (payload.method === 'CLEAR_MOOD_DATA_RANGE') {
           const { referenceDate, days } = payload.params || {}
-          // ...existing code...
           if (!referenceDate || !days) {
             ctx.response({ data: { success: false, error: 'Invalid params' } })
             return
@@ -179,7 +187,6 @@ App({
           } catch (e) {
             data = {}
           }
-          // ...existing code...
           const refDate = new Date(referenceDate)
           for (let i = Number(days) - 1; i >= 0; i--) {
             const d = new Date(refDate)
@@ -187,7 +194,6 @@ App({
             const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
             if (data[key]) delete data[key]
           }
-          // ...existing code...
           const clearedAt = Date.now()
           localStorage.setItem('mood_history', JSON.stringify(data))
           localStorage.setItem('mood_history_cleared_at', String(clearedAt))
@@ -196,7 +202,6 @@ App({
           if (cb && typeof cb === 'function') {
             try { cb(clearedAt) } catch (e) {}
           }
-          // ...existing code...
           ctx.response({ data: { success: true } })
           return
         }

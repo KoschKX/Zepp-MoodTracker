@@ -1,3 +1,39 @@
+// Convert flat {YYYY-MM-DD: value} to nested {YYYY: {MM: {DD: value}}}
+export function toNested(obj) {
+	if (!obj || typeof obj !== 'object') return {};
+	const nested = {};
+	for (const key in obj) {
+		if (/^\d{4}-\d{1,2}-\d{1,2}$/.test(key)) {
+			const [y, mRaw, dRaw] = key.split('-');
+			const m = mRaw.padStart(2, '0');
+			const d = dRaw.padStart(2, '0');
+			if (!nested[y]) nested[y] = {};
+			if (!nested[y][m]) nested[y][m] = {};
+			nested[y][m][d] = obj[key];
+		} else if (/^\d{4}$/.test(key) && typeof obj[key] === 'object') {
+			nested[key] = toNested(obj[key]);
+		}
+	}
+	return nested;
+}
+// Helper: Flatten nested mood data {YYYY: {MM: {DD: value}}} to flat {YYYY-MM-DD: value}
+export function flattenMoodHistory(nested) {
+	const flat = {};
+	if (!nested || typeof nested !== 'object') return flat;
+	for (const y in nested) {
+		if (!/^[0-9]{4}$/.test(y)) continue;
+		const months = nested[y];
+		for (const m in months) {
+			if (!/^[0-9]{2}$/.test(m)) continue;
+			const days = months[m];
+			for (const d in days) {
+				if (!/^[0-9]{2}$/.test(d)) continue;
+				flat[`${y}-${m}-${d}`] = days[d];
+			}
+		}
+	}
+	return flat;
+}
 import { localStorage } from '@zos/storage';
 import { sendMoodDataToPhone, requestMoodDataFromPhone, pingPhone } from '../../utils/sync';
 
@@ -7,19 +43,25 @@ import * as ui from './ui';
 
 export const getTodayMood = (date = state.getDebugDate()) => state.getMoodHistoryByDate(formatDateKey(date)) || null;
 export const setTodayMood = (v) => {
-	const dateKey = formatDateKey(state.getDebugDate());
+    const dateKey = formatDateKey(state.getDebugDate());
 	if (v == null) {
 		state.unsetMoodHistoryByDate(dateKey);
 	} else {
 		state.setMoodHistoryByDate(dateKey, v);
 	}
-	// Async: sync/send in background so UI updates instantly
+    setTimeout(() => {
+    	const lastMoodData = JSON.stringify({ [dateKey]: state.getMoodHistoryByDate(dateKey) });
+    	sendDataToPhone(lastMoodData);
+	}, 0);
+};
+export const unsetTodayMood = () => {
+	const dateKey = formatDateKey(state.getDebugDate());
+	state.unsetMoodHistoryByDate(dateKey);
 	setTimeout(() => {
-		try {
-			const lastMoodData = JSON.stringify({ [dateKey]: state.getMoodHistoryByDate(dateKey) });
-			//syncToSettingsStorage(lastMoodData, null, true);
-			sendDataToPhone(lastMoodData);
-		} catch {}
+		// Send only today's date as a flat object with value 0
+		const flatData = {};
+		flatData[dateKey] = 0;
+		sendDataToPhone(JSON.stringify(flatData));
 	}, 0);
 };
 
@@ -55,7 +97,6 @@ export const syncToSettingsStorage = (data, params, single=false) => {
 	  return null;
 	}
 	try {
-		
 		const app = (typeof getApp === 'function' ? getApp() : getAppFallback());
 		const debugLog = (msg) => { try { console.log('['+method+']', msg); } catch {} };
 		debugLog('Attempting to sync to settings storage...');
@@ -79,12 +120,11 @@ export const syncToSettingsStorage = (data, params, single=false) => {
 };
 
 export const scheduleMoodHistorySave = () => { if (state.getStorageWriteTimeout()) clearStorageWriteTimeout(); state.setStorageWriteTimeout( setTimeout(() => { saveMoodData(); state.setStorageWriteTimeout(null); }, 200) ); };
-export const saveMoodData = () => localStorage.setItem('mood_history', getItem());
 
 export const reloadMoodDataFromStorage = () => {
 	try {
 		const saved = localStorage.getItem('mood_history');
-		setItem('mood_history', saved || '{}');
+		state.setMoodHistoryByDateAll(JSON.parse(saved || '{}'));
 	} catch (e) {
 		state.setMoodHistoryByDateAll({});
 	}
@@ -103,9 +143,22 @@ export function getClearedAtToken() {
     try {  const v = localStorage.getItem('mood_history_cleared_at');  return v ? Number(v) : 0; } catch (e) { return 0; }
 };
 
+// Always return the nested format as a string
 export const getItem = () => state.getMoodHistoryStringByDate();
-export const setItem = (key, value) => {  if (key === 'mood_history') try { state.setMoodHistoryByDateAll(JSON.parse(value)); } catch { state.setMoodHistoryByDateAll({}); } };
+// Accepts only nested format for mood_history
+export const setItem = (key, value) => {
+	if (key === 'mood_history') {
+		try {
+			state.setMoodHistoryByDate(JSON.parse(value));
+		} catch {
+			state.setMoodHistoryByDate({});
+		}
+	}
+};
+// Save nested format to localStorage
+export const saveMoodData = () => localStorage.setItem('mood_history', state.getMoodHistoryStringByDate());
 try { const saved = localStorage.getItem('mood_history'); if (saved) setItem('mood_history', saved); } catch (e) {}
+
 
 export function checkDataChange(precall = null, callback = null) {
 	  const app = getApp && getApp();
@@ -164,40 +217,73 @@ export function checkMoodParam(params) {
 		}
 	  }
 	} catch (e) {}
-	if (moodValue != null && `${moodValue}`.length) {
-	  const moodNum = Number(moodValue);
-	  if (!Number.isNaN(moodNum)) {
-		const today = new Date();
-		const dateKey = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
-		state.setMoodHistoryByDate(dateKey, moodNum);
-		setTimeout(() => {
-		  try {
-			localStorage.setItem('mood_history', state.getMoodHistoryStringByDate());
-			sendMoodDataToPhone(state.getMoodHistoryStringByDate(), true, log);
-			console.log('[MoodPage] Mood saved successfully!');
-		  } catch (e) {
-			console.log('[MoodPage] Error saving mood:', e);
-		  }
-		}, 0);
-	  }
-	}
+		if (moodValue != null && `${moodValue}`.length) {
+			const moodNum = Number(moodValue);
+			const today = new Date();
+			const dateKey = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+			if (!Number.isNaN(moodNum) && moodNum !== 0) {
+				state.setMoodHistoryByDate(dateKey, moodNum);
+			} else if (!Number.isNaN(moodNum) && moodNum === 0) {
+				// Remove the entry if it exists
+				state.unsetMoodHistoryByDate(dateKey);
+			}
+			setTimeout(() => {
+				localStorage.setItem('mood_history', state.getMoodHistoryStringByDate());
+				sendMoodDataToPhone(state.getMoodHistoryStringByDate(), true, log);
+			}, 0);
+		}
 }
+
 
 export const getMoodHistoryForDays = (numDays) => {
 	const offset = state.getDebugDayOffset();
 	const cacheKey = `${numDays}_${state.getGraphWindowMode()}_${offset}_${Object.keys(state.getMoodHistoryByDateAll()).length}`;
 	if (state.getMoodHistoryCache() && state.getMoodHistoryCacheKey() === cacheKey) {
-		console.log('[MoodHistory] Using cached mood data:', state.getMoodHistoryCache());
 		return state.getMoodHistoryCache();
 	}
 	const view = state.getDebugDate(), today = new Date(), todayKey = formatDateKey(today);
 	const base = state.getGraphWindowMode() ? new Date(view.getFullYear(), view.getMonth(), 1).getTime() : view.getTime(), start = state.getGraphWindowMode() ? 0 : -Math.floor(numDays / 2);
 	state.setMoodHistoryCacheKey(cacheKey);
-	const moodArr = Array.from({ length: numDays }, (_, i) => { const d = new Date(base + (start + i) * getMsPerDay()), k = formatDateKey(d); return { day: d.getDate(), mood: state.getMoodHistoryByDate(k), isToday: k === todayKey }; });
-	console.log('[MoodHistory] Fresh mood data:', moodArr);
+	const moodArr = Array.from({ length: numDays }, (_, i) => {
+		const d = new Date(base + (start + i) * getMsPerDay()), k = formatDateKey(d);
+		return { day: d.getDate(), mood: state.getMoodHistoryByDate(k), isToday: k === todayKey };
+	});
 	state.setMoodHistoryCache(moodArr);
 	return moodArr;
 };
+
+
+// MERGE
+function deepMergeNoZero(target, source) {
+	for (const y in source) {
+	if (!target[y]) target[y] = {};
+	for (const m in source[y]) {
+		if (!target[y][m]) target[y][m] = {};
+		for (const d in source[y][m]) {
+		const val = source[y][m][d];
+		if (val !== 0) {
+			target[y][m][d] = val;
+		} else if (target[y][m][d] !== undefined) {
+			// Remove the entry if value is 0
+			delete target[y][m][d];
+		}
+		}
+	}
+	}
+	return target;
+	}
+	function deepMerge(target, source) {
+	for (const y in source) {
+	if (!target[y]) target[y] = {};
+	for (const m in source[y]) {
+		if (!target[y][m]) target[y][m] = {};
+		for (const d in source[y][m]) {
+		target[y][m][d] = source[y][m][d];
+		}
+	}
+	}
+	return target;
+	}
 
 
 // CALC
@@ -226,4 +312,3 @@ export const getDateStr = (m) => m === 1 ? `${globals.monthNamesAbv[state.getDeb
 
 export const getVis = () => { try { const app = getApp(); if (app?.globalData?.vis) return app.globalData.vis; } catch (e) {} const noop = () => {}; return { log: noop, info: noop, warn: noop, error: noop, initSideRelay: noop, updateSettings: noop, handleSideServiceCall: () => false }; };
 export const formatDateKey = (date) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
-

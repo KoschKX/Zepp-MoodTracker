@@ -54,6 +54,7 @@ Page({
           console.log('[MoodPage] Clearing mood for dateKey:', dateKey);
           state.unsetMoodHistoryByDate(dateKey);
           state.setMoodHistoryCache(null);
+          data.unsetTodayMood();
           imgWidgets.forEach((w) => w.setProperty?.(prop.MORE, { alpha: 180 }));
           graph.drawGraph(false);
           data.scheduleMoodHistorySave();

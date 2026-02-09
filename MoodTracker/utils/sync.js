@@ -8,6 +8,7 @@ const getMessageBuilder = () => {
 };
 
 export const sendMoodDataToPhone = (data, single = true, log = '') => {
+  console.log('[Sync]', JSON.stringify({ data }));
   try {
     const messageBuilder = getMessageBuilder();
     if (!messageBuilder?.request) {

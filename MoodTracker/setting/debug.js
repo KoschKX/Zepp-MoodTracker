@@ -283,9 +283,30 @@ const initDebug = ({ props, safeGet, getBool }) => {
                   color: '#ffcccc',
                   fontFamily: 'monospace',
                   display: 'block',
-                  marginBottom: '6px'
+                  marginBottom: '6px',
+                  wordBreak: 'break-all'
                 }
-              }, `Data: ${fullMoodData}`),
+              }, `Full Data: ${fullMoodData}`),
+              Text({
+                style: {
+                  fontSize: '12px',
+                  color: '#ffcccc',
+                  fontFamily: 'monospace',
+                  display: 'block',
+                  marginBottom: '6px',
+                  wordBreak: 'break-all'
+                }
+              }, `Temp Data: ${tempMoodDataBackup}`),
+              Text({
+                style: {
+                  fontSize: '12px',
+                  color: '#ffcccc',
+                  fontFamily: 'monospace',
+                  display: 'block',
+                  marginBottom: '6px',
+                  wordBreak: 'break-all'
+                }
+              }, `Single Data: ${tempMoodDataSingle}`),
               Text({
                 style: {
                   fontSize: '12px',

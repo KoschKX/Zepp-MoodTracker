@@ -11,6 +11,40 @@ const originalLog = console.log;
 const originalError = console.error;
 const originalWarn = console.warn;
 
+
+// Enhanced merge: merge both flat and nested keys into a single nested structure
+// Flatten nested and flat mood data to flat YYYY-MM-DD keys
+function flattenMoodHistory(obj) {
+  let flat = {};
+  for (const key in obj) {
+    if (/^\d{4}$/.test(key) && typeof obj[key] === 'object' && obj[key] !== null) {
+      for (const m in obj[key]) {
+        for (const d in obj[key][m]) {
+          const ymd = `${key}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+          flat[ymd] = obj[key][m][d];
+        }
+      }
+    } else if (/^\d{4}-\d{2}-\d{2}$/.test(key)) {
+      flat[key] = obj[key];
+    }
+  }
+  return flat;
+}
+
+// Convert flat YYYY-MM-DD keys to nested
+function toNested(obj) {
+  let nested = {};
+  for (const key in obj) {
+    if (/^\d{4}-\d{2}-\d{2}$/.test(key)) {
+      const [y, m, d] = key.split('-');
+      if (!nested[y]) nested[y] = {};
+      if (!nested[y][String(Number(m))]) nested[y][String(Number(m))] = {};
+      nested[y][String(Number(m))][String(Number(d))] = obj[key];
+    }
+  }
+  return nested;
+}
+
 const captureLog = function(prefix, ...args) {
   try {
     // Check if any argument contains filtered strings
@@ -220,23 +254,45 @@ AppSideService({
           try {
             let oldObj = JSON.parse(oldData);
             let newObj = typeof incomingStr === 'string' ? JSON.parse(incomingStr) : incomingStr;
-            Object.keys(newObj).forEach(function(dateKey) {
-              oldObj[dateKey] = typeof newObj[dateKey] === 'string' ? Number(newObj[dateKey]) : newObj[dateKey];
-            });
-            merged = JSON.stringify(oldObj);
+            // Always flatten both old and new data, then merge
+            let flatOld = flattenMoodHistory(oldObj);
+            let flatNew = flattenMoodHistory(newObj);
+            let mergedFlat = { ...flatOld, ...flatNew };
+            // Remove all 0 values from mergedFlat
+            for (const key in mergedFlat) {
+              if (mergedFlat[key] === 0) {
+                delete mergedFlat[key];
+              }
+            }
+            let mergedObj = toNested(mergedFlat);
+            merged = JSON.stringify(mergedObj);
           } catch (e) {
             merged = incomingStr;
           }
           settings.settingsStorage.setItem('moodData', merged);
           settings.settingsStorage.setItem('moodDataBackup', oldData);
-          settings.settingsStorage.setItem('moodDataSingle', payload.params);
+          settings.settingsStorage.setItem('moodDataSingle', incomingStr);
           settings.settingsStorage.setItem('lastSync', receivedTime);
           ctx.response({
             data: { success: true, time: receivedTime }
           });
         } else if (payload.method === 'SYNC_MOOD_DATA') {
+          let oldData = settings.settingsStorage.getItem('moodData') || '{}';
           let incomingStr = payload.params || '{}';
-          settings.settingsStorage.setItem('moodData', incomingStr);
+          let merged = '{}';
+          try {
+            let oldObj = JSON.parse(oldData);
+            let newObj = typeof incomingStr === 'string' ? JSON.parse(incomingStr) : incomingStr;
+            // Always flatten both old and new data, then merge
+            let flatOld = flattenMoodHistory(oldObj);
+            let flatNew = flattenMoodHistory(newObj);
+            let mergedFlat = { ...flatOld, ...flatNew };
+            let mergedObj = toNested(mergedFlat);
+            merged = JSON.stringify(mergedObj);
+          } catch (e) {
+            merged = incomingStr;
+          }
+          settings.settingsStorage.setItem('moodData', merged);
           ctx.response({
             data: { success: true, time: receivedTime }
           });

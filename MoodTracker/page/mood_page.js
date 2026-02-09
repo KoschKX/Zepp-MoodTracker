@@ -19,6 +19,7 @@ Page({
     state.setMoodHistoryCache(null);
     graph.setGraphWindowMode(0);
     graph.setMaxMoodDots(31);
+    data.reloadMoodDataFromStorage();
     // graph.setTapAreaUrl('page/month_page');
     data.checkMoodParam(params);
     data.checkDataChange(
@@ -49,21 +50,18 @@ Page({
       img.addEventListener?.(event.CLICK_DOWN, () => { 
         const dateKey = data.formatDateKey(state.getDebugDate());
         const currentMood =  state.getMoodHistoryByDate(dateKey);
-          console.log('[MoodPage] Before click:', {dateKey, currentMood});
         if (currentMood === mood.value) {
-          console.log('[MoodPage] Clearing mood for dateKey:', dateKey);
           state.unsetMoodHistoryByDate(dateKey);
           state.setMoodHistoryCache(null);
+          data.unsetTodayMood();
           imgWidgets.forEach((w) => w.setProperty?.(prop.MORE, { alpha: 180 }));
           graph.drawGraph(false);
-          data.scheduleMoodHistorySave();
-          console.log('[MoodPage] After clear:', {dateKey, mood: state.getMoodHistoryByDate(dateKey)});
+          data.scheduleMoodHistorySave();;
         } else {
           state.setMoodHistoryCache(null);
           data.setTodayMood(mood.value);
           imgWidgets.forEach((w, j) => w.setProperty?.(prop.MORE, { alpha: mood.value === globals.moods[j].value ? 255 : 180 }));
           graph.drawGraph(false);
-          console.log('[MoodPage] After set:', {dateKey, mood: state.getMoodHistoryByDate(dateKey)});
         }
       }); 
       return img; 
@@ -74,7 +72,6 @@ Page({
 
     // NAV ARROWS
     const navigateDate = dir => {
-      state.setDebugDayOffset(state.getDebugDayOffset() + dir);
       if (graph.getGraphWindowMode() === 0) {
           state.setDebugDayOffset(state.getDebugDayOffset() + dir);
       } else {

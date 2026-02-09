@@ -1,5 +1,4 @@
 // STATE 
-
 let _moodDataByDate = {};
 let _interpolationEnabled = false;
 let _debugDayOffset = 0;
@@ -38,12 +37,49 @@ export function setMoodHistoryCache(cache) { _moodHistoryCache = cache; }
 export function getMoodHistoryCacheKey() { return _moodHistoryCacheKey; }
 export function setMoodHistoryCacheKey(key) { _moodHistoryCacheKey = key; }
 export function getMoodHistoryByDateAll() { return _moodDataByDate; }
-export function setMoodHistoryByDateAll(dat) { _moodDataByDate = dat; }
-export function getMoodHistoryByDate(key) { return _moodDataByDate[key]; }
-export function setMoodHistoryByDate(key, val) { _moodDataByDate[key] = val; }
+export function setMoodHistoryByDateAll(dat) {
+	function padNestedKeys(nested) {
+		if (!nested || typeof nested !== 'object') return {};
+		const out = {};
+		for (const y in nested) {
+			if (!/^[0-9]{4}$/.test(y)) continue;
+			out[y] = {};
+			for (const m in nested[y]) {
+				const mm = m.padStart(2, '0');
+				out[y][mm] = {};
+				for (const d in nested[y][m]) {
+					const dd = d.padStart(2, '0');
+					out[y][mm][dd] = nested[y][m][d];
+				}
+			}
+		}
+		return out;
+	}
+	if (dat && typeof dat === 'object' && Object.keys(dat).every(y => typeof dat[y] === 'object')) {
+		// Already nested structure, but may need padding
+		_moodDataByDate = padNestedKeys(dat);
+	} else {
+		// Flat structure, needs nesting and padding
+		_moodDataByDate = padNestedKeys(toNested(dat));
+	}
+}
+export function getMoodHistoryByDate(key) {
+	const [y, m, d] = key.split('-');
+	return _moodDataByDate?.[y]?.[m]?.[d] ?? undefined;
+}
+export function setMoodHistoryByDate(key, val) {
+	const [y, m, d] = key.split('-');
+	if (!_moodDataByDate[y]) _moodDataByDate[y] = {};
+	if (!_moodDataByDate[y][m]) _moodDataByDate[y][m] = {};
+	_moodDataByDate[y][m][d] = val;
+}
 export function getMoodHistoryStringByDate() { return JSON.stringify(_moodDataByDate); }
-export function setMoodHistoryStringByDate(str) { _moodDataByDate = str; }
-export function unsetMoodHistoryByDate(key) { delete _moodDataByDate[key]; }
+export function setMoodHistoryStringByDate(str) { _moodDataByDate = toNested(JSON.parse(str)); }
+export function unsetMoodHistoryByDate(key) {
+	const [y, m, d] = key.split('-');
+	if (_moodDataByDate?.[y]?.[m]) delete _moodDataByDate[y][m][d];
+}
+
 
 export function getInterpolationEnabled() { return _interpolationEnabled; }
 export function setInterpolationEnabled(enabled) { _interpolationEnabled = enabled; }
