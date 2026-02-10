@@ -76,7 +76,6 @@ Page({
       graph.updateUIAfterDateChange(debugDateText, statusText, imgWidgets);
       setTimeout(() => { state.setInterpolationEnabled(true); graph.drawGraph(false); _loadingText.setProperty?.(prop.MORE, { y: px(-100) }); }, 100);
     });
-    
   },
   onShow() {},
   onHide() {

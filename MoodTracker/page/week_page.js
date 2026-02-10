@@ -53,10 +53,10 @@ Page({
         if (currentMood === mood.value) {
           console.log('[MoodPage] Clearing mood for dateKey:', dateKey);
           state.setMoodHistoryCache(null);
-          data.unsetTodayMood();
+          data.setTodayMood(0);
           imgWidgets.forEach((w) => w.setProperty?.(prop.MORE, { alpha: 180 }));
           graph.drawGraph(false);
-            console.log('[MoodPage] After clear:', {dateKey, mood: state.getMoodHistoryByDate(dateKey)});
+          console.log('[MoodPage] After clear:', {dateKey, mood: state.getMoodHistoryByDate(dateKey)});
         } else {
           state.setMoodHistoryCache(null);
           data.setTodayMood(mood.value);

@@ -52,7 +52,6 @@ Page({
         const currentMood =  state.getMoodHistoryByDate(dateKey);
         if (currentMood === mood.value) {
           state.setMoodHistoryCache(null);
-          data.unsetTodayMood();
           data.setTodayMood(0);
           imgWidgets.forEach((w) => w.setProperty?.(prop.MORE, { alpha: 180 }));
           graph.drawGraph(false);

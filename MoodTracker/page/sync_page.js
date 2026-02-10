@@ -4,6 +4,7 @@ import { push } from '@zos/router';
 import { localStorage } from '@zos/storage';
 import { requestMoodDataFromPhone, pingPhone } from '../utils/sync';
 import * as funcs from './functions/funcs';
+import * as data from './functions/data';
 
 let targetPage = 'page/mood_select';
 let forceSync = false;
@@ -14,6 +15,9 @@ Page({
   logAndSend(message) {},
 
   onInit(params) {
+
+    data.removeAllZeroMoods();
+
     this.syncLog = [];
     let target = 'page/mood_select';
     let force = false;
