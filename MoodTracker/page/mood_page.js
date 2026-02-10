@@ -51,12 +51,11 @@ Page({
         const dateKey = data.formatDateKey(state.getDebugDate());
         const currentMood =  state.getMoodHistoryByDate(dateKey);
         if (currentMood === mood.value) {
-          state.unsetMoodHistoryByDate(dateKey);
           state.setMoodHistoryCache(null);
           data.unsetTodayMood();
+          data.setTodayMood(0);
           imgWidgets.forEach((w) => w.setProperty?.(prop.MORE, { alpha: 180 }));
           graph.drawGraph(false);
-          data.scheduleMoodHistorySave();;
         } else {
           state.setMoodHistoryCache(null);
           data.setTodayMood(mood.value);

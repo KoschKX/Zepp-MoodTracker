@@ -59,10 +59,8 @@ export const unsetTodayMood = () => {
 	const dateKey = formatDateKey(state.getDebugDate());
 	state.unsetMoodHistoryByDate(dateKey);
 	setTimeout(() => {
-		// Send only today's date as a flat object with value 0
-		const flatData = {};
-		flatData[dateKey] = 0;
-		sendDataToPhone(JSON.stringify(flatData));
+		setTodayMood(0);
+		removeAllZeroMoods();
 	}, 0);
 };
 
@@ -310,6 +308,32 @@ export const getMonthAverageMood = () => {
 	for (let i = 1; i <= days; i++) { const mood = state.getMoodHistoryByDate(formatDateKey(new Date(y, m, i))); if (mood) sum += mood, cnt++; }
 	return cnt ? Math.ceil(sum / cnt) : null;
 };
+
+// Quickly remove all mood entries with value 0 from localStorage
+export function removeAllZeroMoods() {
+	// Get the nested mood data from state
+	const nested = state.getMoodHistoryByDateAll();
+	// Deep clone to avoid mutating while iterating
+	const cleaned = {};
+	for (const y in nested) {
+		if (!/^[0-9]{4}$/.test(y)) continue;
+		for (const m in nested[y]) {
+			if (!/^[0-9]{2}$/.test(m)) continue;
+			for (const d in nested[y][m]) {
+				if (!/^[0-9]{2}$/.test(d)) continue;
+				const val = nested[y][m][d];
+				if (val !== 0) {
+					if (!cleaned[y]) cleaned[y] = {};
+					if (!cleaned[y][m]) cleaned[y][m] = {};
+					cleaned[y][m][d] = val;
+				}
+			}
+		}
+	}
+	// Replace the mood data in state and localStorage
+	state.setMoodHistoryByDateAll(cleaned);
+	localStorage.setItem('mood_history', state.getMoodHistoryStringByDate());
+}
 
 // CONSTANTS
 export const msPerDay = 24 * 60 * 60 * 1000;
