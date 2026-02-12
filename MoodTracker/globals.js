@@ -1,34 +1,42 @@
 
 // --- SETTINGS ---
+
+// DEBUG
 export const DEBUG_MODE = false;
-export const SHOW_INTERPOLATION_DOTS = true;
-export const ADAPTIVE_INTERPOLATION_DOTS = true;
-export const SHOW_TODAY_ARROW = false;
-export const SHOW_CENTER_LINE = true;
-export const SHOW_GRID_DOTS = false;
-export const TARGET_FPS = 30;
+
+// PERFORMANCE
+export const TARGET_FPS = 24;
 export const FRAME_TIME = Math.floor(1000 / TARGET_FPS);
-export const DEBOUNCE_MULTIPLIER = 1;
 export const INSTANT_NAV = true;
+export const VERTICAL_GRAPH_DOT_SIZE = 10;
 export const ULTRA_LIGHT_NAV = true;
 export const THROTTLE_DATE_UPDATES = true;
+export const SKIP_UI_UPDATES_DURING_NAV = true;
+
+
+// GRAPH
+export const SHOW_LOADING_INDICATOR = true;
+export const LOADING_TEXT = '...';
+export const SHOW_INTERPOLATION_DOTS = true;
+export const ADAPTIVE_INTERPOLATION_DOTS = true;
+export const SHOW_CENTER_LINE = true;
+export const VERTICAL_GRAPH_DOTS = 5;
+export const VERTICAL_GRAPH_DOT_TEXT_SIZE = 12;
+export const VERTICAL_GRAPH_DOT_COLOR = 0x666666;
+export const VERTICAL_GRAPH_DOT_OFFSET = 4; 
+export const VERTICAL_GRAPH_DOT_GLYPH = '•'; // '•' '┃' '|' '+' ':' '*' '⋮' '┼' '║' 
+export const SHOW_TODAY_ARROW = false;
+export const TODAY_ARROW_COLOR = 0xffffff;
+export const SHOW_GRID_DOTS = false;
+export const ATTACH_DOT_TAP_EVENTS = true;
 export const HIDE_DOTS_DURING_NAV_WEEK = false;
 export const HIDE_DOTS_DURING_NAV_MONTH = true;
-export const SHOW_LOADING_INDICATOR = true;
-export const SKIP_UI_UPDATES_DURING_NAV = true;
-export const ATTACH_DOT_TAP_EVENTS = true;
-
-// --- STAGGERED DOT REVEAL (animation) ---
-// Enable a left-to-right staggered reveal for the pooled mood dots
 export const ENABLE_STAGGER_DOT_REVEAL = true;
-// Milliseconds between revealing each pooled mood dot
 export const STAGGER_DOT_REVEAL_MS = 300;
-// NOTE: interpolation dots use the same stagger settings as main dots
 
+// DATA
 export const ASYNC_DATA = false;
 export const IMMEDIATE_SAVE = false;
-
-// --- GZIP SETTINGS ---
 export const ENABLE_COMPRESSION_OUTGOING = true; 
 export const ENABLE_COMPRESSION_INCOMING = true;
 

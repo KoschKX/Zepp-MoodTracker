@@ -1,6 +1,7 @@
 import { createWidget, widget, align, prop, event } from '@zos/ui';
 import { px } from '@zos/utils';
 import { push } from '@zos/router';
+import * as globals from '../globals';
 
 // Lazy init: compute px() values on first render, not module load
 let PX = null;
@@ -133,7 +134,7 @@ Page({
         skipButton.setProperty && skipButton.setProperty(prop.MORE, { text: '' });
         // Switch status text to loading
         statusText.setProperty && statusText.setProperty(prop.MORE, { 
-          text: '...',
+          text: globals.LOADING_TEXT,
           y: px.y172,
           text_size: px.size36
         });
@@ -159,7 +160,7 @@ Page({
       
       // Switch status text to loading
       statusText.setProperty && statusText.setProperty(prop.MORE, { 
-        text: '...',
+        text: globals.LOADING_TEXT,
         y: PX.y172,
         text_size: PX.size36
       });

@@ -2,10 +2,10 @@ import { createWidget, widget, align, prop, event } from '@zos/ui';
 import { px } from '@zos/utils';
 
 import * as globals from '../globals';
-import * as state from './state';
-import * as ui from './ui';
-import * as calc from './calc';
-import * as data from './data';
+import * as state from '../functions/state';
+import * as ui from '../functions/ui';
+import * as calc from '../functions/calc';
+import * as data from '../functions/data';
 
 // TAP AREA
 let TAPAREA_CALLBACK = null;
@@ -263,14 +263,11 @@ export function drawGraph(skipDots = false, stagger) {
     }
   }
 
-  // center line is only relevant for week mode; avoid creating when in month mode
+  // center line is only relevant for week mode; recreate if desired count changes
   if (!skipDots && globals.SHOW_CENTER_LINE && getGraphWindowMode() === 0) {
     const desiredNum = globals.VERTICAL_GRAPH_DOTS || 9;
-    // If existing centerLineDots don't match desired count, remove and recreate
     if (drawGraph.centerLineDots && drawGraph.centerLineDots.length !== desiredNum) {
-      try {
-        drawGraph.centerLineDots.forEach(d => d && typeof d.remove === 'function' && d.remove());
-      } catch (e) {}
+      try { drawGraph.centerLineDots.forEach(d => d && typeof d.remove === 'function' && d.remove()); } catch (e) {}
       drawGraph.centerLineDots = null;
     }
     if (!drawGraph.centerLineDots) {
@@ -278,7 +275,7 @@ export function drawGraph(skipDots = false, stagger) {
       const centerX = graphLeft + graphWidth / 2 - 1;
       const numDots = desiredNum;
       const dotSpacing = graphHeight / Math.max(1, numDots - 1);
-      // store numeric Y positions (pre-px) so week lines can reuse exact values
+      // compute and store numeric Y positions so week lines reuse exact values
       drawGraph._verticalDotYPositions = [];
       for (let i = 0; i < numDots; i++) {
         const yVal = graphTop + i * dotSpacing - globals.VERTICAL_GRAPH_DOT_OFFSET;
@@ -301,7 +298,6 @@ export function drawGraph(skipDots = false, stagger) {
   // weekLineDots used for month layout; only create when month pools are initialized
   if (!skipDots && (getGraphWindowMode() !== 1 || drawGraph._monthPoolsInitialized)) {
     const desiredNum = globals.VERTICAL_GRAPH_DOTS || 9;
-    // If weekLineDots exist but length per line differs, remove and recreate
     if (drawGraph.weekLineDots && drawGraph.weekLineDots.length > 0 && drawGraph.weekLineDots[0].length !== desiredNum) {
       try { drawGraph.weekLineDots.forEach(line => line.forEach(d => d && typeof d.remove === 'function' && d.remove())); } catch (e) {}
       drawGraph.weekLineDots = null;
@@ -707,21 +703,6 @@ export function forceInstantRevealOnce() {
   } catch (e) {}
 }
 
-// Public helper to force rebuilding center and week-line dot widgets
-export function rebuildVerticalDots() {
-  try {
-    if (drawGraph.centerLineDots) {
-      drawGraph.centerLineDots.forEach(d => d && typeof d.remove === 'function' && d.remove());
-      drawGraph.centerLineDots = null;
-    }
-    if (drawGraph.weekLineDots) {
-      drawGraph.weekLineDots.forEach(line => line.forEach(d => d && typeof d.remove === 'function' && d.remove()));
-      drawGraph.weekLineDots = null;
-    }
-  } catch (e) {}
-  try { drawGraph(false); } catch (e) {}
-}
-
 
 export const refreshMoodDataAndUI = () => {
     if (storageWriteTimeout) {
@@ -807,3 +788,18 @@ export const updateUIAfterDateChange = (debugDateText, statusText, imgWidgets,) 
     setTimeout(() => { state.setIsNavigating(false); if (globals.SKIP_UI_UPDATES_DURING_NAV) updateMoodUI(); state.setCachedDebugDate(null); state.setMoodHistoryCache(null); drawGraph(); state.setNavDebounceTimer(null); }, globals.FRAME_TIME * globals.DEBOUNCE_MULTIPLIER)
   );
 };
+
+// Helper to force-rebuild vertical dots (center & week lines)
+export function rebuildVerticalDots() {
+  try {
+    if (drawGraph.centerLineDots) {
+      drawGraph.centerLineDots.forEach(d => d && typeof d.remove === 'function' && d.remove());
+      drawGraph.centerLineDots = null;
+    }
+    if (drawGraph.weekLineDots) {
+      drawGraph.weekLineDots.forEach(line => line.forEach(d => d && typeof d.remove === 'function' && d.remove()));
+      drawGraph.weekLineDots = null;
+    }
+  } catch (e) {}
+  try { drawGraph(false); } catch (e) {}
+}

@@ -6,9 +6,10 @@ import * as calc from '../functions/calc';
 import * as state from '../functions/state';
 import * as storage from '../functions/storage';
 import * as data from '../functions/data';
-import * as graph from '../functions/graph';
-import * as header from '../functions/header';
-import * as legend from '../functions/legend';
+import * as graph from '../elements/graph';
+import * as header from '../elements/header';
+import * as legend from '../elements/legend';
+import * as smileys from '../elements/smileys';
 import * as ui from '../functions/ui';
 
 const raf = (typeof requestAnimationFrame !== 'undefined') ? requestAnimationFrame : (cb) => setTimeout(cb, 16);
@@ -46,32 +47,8 @@ Page({
       header.updateHeader(debugDateText, statusText, graph.getGraphWindowMode());
     });
 
-    // SMILEYS
-    const imgWidgets = globals.moods.map((mood, i) => { 
-      const img = createWidget(widget.IMG, { x: px(PX.x45 + i * PX.x68), y: PX.x120, w: PX.x64, h: PX.x64, src: mood.img, alpha: todayMood === mood.value ? 255 : 180 }); 
-      img.addEventListener?.(event.CLICK_DOWN, () => { 
-        const dateKey = calc.formatDateKey(state.getDebugDate());
-        const currentMood =  state.getMoodHistoryByDate(dateKey);
-        if (currentMood === mood.value) {
-          state.setMoodHistoryCache(null);
-          data.unsetTodayMood();
-          imgWidgets.forEach((w) => w.setProperty?.(prop.MORE, { alpha: 180 }));
-             // Suppress stagger when user unsets mood to avoid replaying animation
-             try { graph.drawGraph._suppressStaggerUntil = Date.now() + 350; console.log('[stagger] _suppressStaggerUntil set on unset mood:', graph.drawGraph._suppressStaggerUntil); } catch (e) {}
-             graph.drawGraph(false);
-        } else {
-          state.setMoodHistoryCache(null);
-          data.setTodayMood(mood.value);
-          imgWidgets.forEach((w, j) => w.setProperty?.(prop.MORE, { alpha: mood.value === globals.moods[j].value ? 255 : 180 }));
-             // Suppress stagger when user sets mood to avoid replaying animation
-             try { graph.drawGraph._suppressStaggerUntil = Date.now() + 350; console.log('[stagger] _suppressStaggerUntil set on set mood:', graph.drawGraph._suppressStaggerUntil); } catch (e) {}
-             graph.drawGraph(false);
-        }
-        header.updateHeader(debugDateText, statusText, graph.getGraphWindowMode());
-      }); 
-      
-      return img; 
-    });
+    // SMILEYS (moved to functions/smileys.js)
+    const imgWidgets = smileys.createSmileys(PX, debugDateText, statusText);
     if (graph.getGraphWindowMode() == 0) {
       ui.updateMoodButtonsVisibility.imgWidgets = imgWidgets;
     }
@@ -114,7 +91,7 @@ Page({
           rightArrow.addEventListener?.(event.CLICK_DOWN, () => navigateDate(1));
 
     // LOADER TEXT
-    _loadingText = createWidget(widget.TEXT, { text: '...', x: px(182), y: px(226), w: px(60), h: px(30), color: 0x888888, text_size: px(24), align_h: align.CENTER_H, align_v: align.CENTER_V });
+    _loadingText = createWidget(widget.TEXT, { text: globals.LOADING_TEXT, x: px(182), y: px(226), w: px(60), h: px(30), color: 0x888888, text_size: px(24), align_h: align.CENTER_H, align_v: align.CENTER_V });
 
     state.setInterpolationEnabled(true);
     header.updateHeader(debugDateText, statusText, graph.getGraphWindowMode());
