@@ -6,11 +6,22 @@ import * as calc from './calc.js';
 import * as storage from './storage.js';
 import { compress } from '../utils/compression.js';
 
-export const getTodayMood = (date = state.getDebugDate()) => state.getMoodHistoryByDate(calc.formatDateKey(date)) || null;
+export const getTodayMood = (date = state.getDebugDate()) => {
+	let raw = state.getMoodHistoryByDate(calc.formatDateKey(date));
+	if (raw === undefined || raw === null) return null;
+	if (typeof raw === 'object' && raw.mood !== undefined) raw = raw.mood;
+	if (typeof raw === 'string' && raw.trim().length) {
+		const n = Number(raw);
+		raw = Number.isNaN(n) ? raw : n;
+	}
+	if (typeof raw === 'number') return raw;
+	return null;
+};
 export const setTodayMood = (v) => {
     const dateKey = calc.formatDateKey(state.getDebugDate());
 	if (v == null) {
-		state.unsetMoodHistoryByDate(dateKey);
+		unsetTodayMood(); 
+		return;
 	} else {
 		state.setMoodHistoryByDate(dateKey, v);
 	}
@@ -23,12 +34,8 @@ export const setTodayMood = (v) => {
 };
 export const unsetTodayMood = () => {
 	const dateKey = calc.formatDateKey(state.getDebugDate());
-	// Remove in-memory entry first so subsequent reads see it as gone.
-	state.unsetMoodHistoryByDate(dateKey);
-	// Persist the removal immediately so any synchronous UI redraws
-	// that attempt to reload from storage won't rehydrate the removed value.
-	try { storage.saveMoodData(dateKey); } catch (e) {}
-	// Notify remote asynchronously
+	state.setMoodHistoryByDate(dateKey, 0);
+	storage.saveMoodData(dateKey);
 	setTimeout(() => {
 		try { sendDataToPhone(JSON.stringify({ [dateKey]: null })); } catch (e) {}
 	}, 0);

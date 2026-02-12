@@ -20,7 +20,7 @@ export function createSmileys(PX, debugDateText, statusText) {
       const currentMood = state.getMoodHistoryByDate(dateKey);
       console.log(currentMood === mood.value ? '[TEST] Unsetting' : '[TEST] Setting', 'mood:', mood.value, 'currentMood:', currentMood);
       if (currentMood === mood.value) {
-        console.log('[TEST] Unsetting mood for dateKey:', dateKey);
+        console.log('[PROBLEM] Unsetting mood for dateKey:', dateKey);
         state.setMoodHistoryCache(null);
         data.unsetTodayMood();
         imgWidgets.forEach((w) => w.setProperty?.(prop.MORE, { alpha: 180 }));
@@ -28,7 +28,7 @@ export function createSmileys(PX, debugDateText, statusText) {
         try { graph.drawGraph._suppressStaggerUntil = Date.now() + 350; } catch (e) {}
         graph.drawGraph(false);
       } else {
-        console.log('[TEST] Setting mood for dateKey:', dateKey);
+        console.log('[PROBLEM] Setting mood for dateKey:', dateKey);
         state.setMoodHistoryCache(null);
         data.setTodayMood(mood.value);
         imgWidgets.forEach((w, j) => w.setProperty?.(prop.MORE, { alpha: mood.value === globals.moods[j].value ? 255 : 180 }));

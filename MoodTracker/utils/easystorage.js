@@ -148,6 +148,7 @@ const json_mood = 'moodData.json';
         if(globals.ASYNC_DATA){
             AsyncStorage.WriteJson(json_mood, key, null);
         }else{
+            console.log
             try { easyStorage.removeKey(storageKey(key)); } catch (e) {}
         }
     }

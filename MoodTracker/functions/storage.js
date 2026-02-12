@@ -15,12 +15,14 @@ export const saveMoodData = (dateKey = null) => {
 		if (all[y] && all[y][m]) {
 			const key = 'mood_' + dateKey;
 			const val = String(all[y][m][d]);
-			state.setMoodHistoryByDate(key, val);
+			console.log('[PROBLEM] ', val);
 			if(val == 0 || !val || isNaN(Number(val)) ) {
+				console.log('[PROBLEM] ', dateKey);
 				easystorage.removeItem(key);
+				state.unsetMoodHistoryByDate(key);
 			}else{
+				state.setMoodHistoryByDate(key, val);
 				easystorage.setItem(key, val);
-				// commitData removed here — commit will occur on app exit only
 			}
 		}
 	} 

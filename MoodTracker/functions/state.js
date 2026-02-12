@@ -45,10 +45,8 @@ export function getMoodHistoryCacheKey() { return _moodHistoryCacheKey; }
 export function setMoodHistoryCacheKey(key) { _moodHistoryCacheKey = key; }
 export function getMoodHistoryByDateAll() { return _moodDataByDate; }
 export function setMoodHistoryByDateAll(dat) {
-	// Accept either nested {YYYY: {MM: {DD: val}}} or flat {"YYYY-M-D": val}
 	const normalize = (input) => {
 		if (!input || typeof input !== 'object') return {};
-		// Detect flat keys like 2026-2-3 or 2026-02-03
 		const keys = Object.keys(input);
 		if (keys.length === 0) return {};
 		const isFlat = keys.every(k => /^\d{4}-\d{1,2}-\d{1,2}$/.test(k));
@@ -64,7 +62,6 @@ export function setMoodHistoryByDateAll(dat) {
 			}
 			return out;
 		}
-		// Already nested but ensure month/day keys are zero-padded
 		const out = {};
 		for (const y of Object.keys(input)) {
 			if (!/^\d{4}$/.test(y)) continue;
@@ -82,7 +79,6 @@ export function setMoodHistoryByDateAll(dat) {
 		}
 		return out;
 	};
-
 	_moodDataByDate = normalize(dat);
 	try { console.log(JSON.stringify(_moodDataByDate)); } catch (e) {}
 }
