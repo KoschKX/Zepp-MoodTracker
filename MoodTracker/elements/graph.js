@@ -40,7 +40,55 @@ let _graphWindowMode = 0;
 export const getGraphWindowMode = () => _graphWindowMode;
 export const setGraphWindowMode = (mode) => { _graphWindowMode = mode; };
 
-export function drawGraph(skipDots = false, stagger) {
+// Mode listeners
+let _modeListeners = [];
+export const onGraphWindowModeChange = (cb) => {
+  if (typeof cb !== 'function') return () => {};
+  _modeListeners.push(cb);
+  return () => { _modeListeners = _modeListeners.filter(f => f !== cb); };
+};
+
+
+export function drawGraph(skipDots = false, stagger = false) {
+
+  // If caller explicitly requests a staggered draw, reset any
+  // previous stagger suppression/timers so the stagger animation
+  // starts fresh at the beginning. If `stagger` is false, do nothing.
+  if (stagger === true) {
+    try {
+      drawGraph._noStaggerUntil = 0;
+      drawGraph._instantReveal = false;
+      drawGraph._isStaggering = false;
+      if (drawGraph._staggerTimer) {
+        try {
+          if (typeof drawGraph._staggerTimer === 'object' && drawGraph._staggerTimer.type === 'raf' && typeof cancelAnimationFrame !== 'undefined') cancelAnimationFrame(drawGraph._staggerTimer.id);
+          else clearTimeout(drawGraph._staggerTimer);
+        } catch (e) {}
+        drawGraph._staggerTimer = null;
+      }
+      if (drawGraph._staggerInterpTimer) {
+        try {
+          if (typeof drawGraph._staggerInterpTimer === 'object' && drawGraph._staggerInterpTimer.type === 'raf' && typeof cancelAnimationFrame !== 'undefined') cancelAnimationFrame(drawGraph._staggerInterpTimer.id);
+          else clearTimeout(drawGraph._staggerInterpTimer);
+        } catch (e) {}
+        drawGraph._staggerInterpTimer = null;
+      }
+    } catch (e) {}
+  }
+
+  try {
+    const currentMode = getGraphWindowMode();
+    if (typeof drawGraph._lastGraphMode === 'undefined') drawGraph._lastGraphMode = currentMode;
+    if (drawGraph._lastGraphMode !== currentMode) {
+      const prev = drawGraph._lastGraphMode;
+      drawGraph._lastGraphMode = currentMode;
+      const listeners = _modeListeners.slice();
+      //setTimeout(() => { listeners.forEach(cb => { try { cb(currentMode, prev, { phase: 'preDraw' }); } catch (e) {} }); }, 0);
+      listeners.forEach(cb => { try { cb(currentMode, prev, { phase: 'preDraw' }); } catch (e) {} });
+      return;
+    }
+  } catch (e) {}
+  
   if (drawGraph._isRendering) return;
   if (drawGraph._perfEnabled && typeof console !== 'undefined' && console.time) console.time('drawGraph');
   drawGraph._isRendering = true;
@@ -510,11 +558,13 @@ export function drawGraph(skipDots = false, stagger) {
       // Use the PX-scaled graph width for consistent pixel units.
       const refMs = globals.STAGGER_DOT_REVEAL_MS || 33;
       const graphWidthPx = PX.x272 || px(graphWidth);
-      const xs = combined.map(c => (c.props && typeof c.props.x === 'number') ? c.props.x : 0).filter(x => x > 0);
-      const avgDeltaX = xs.length > 1 ? xs.slice(1).map((v, i) => Math.abs(v - xs[i])).reduce((s, v) => s + v, 0) / (xs.length - 1) : (graphWidthPx / Math.max(1, windowSize - 1));
+      // Compute a constant traversal speed across the full graph width.
+      // Total duration (ms) to traverse graph: graphWidthPx * refMs / referenceDeltaX
       const referenceDeltaX = graphWidthPx / Math.max(1, (Math.min(windowSize, 7) - 1) || 6);
-      const pixelsPerMs = referenceDeltaX / refMs;
-      let baseMs = Math.max(1, Math.round((avgDeltaX || referenceDeltaX) / pixelsPerMs));
+      const totalDurationMs = Math.max(1, Math.round((graphWidthPx * refMs) / referenceDeltaX));
+      // Spread total duration evenly across the number of reveal steps so left->right speed is constant
+      const steps = Math.max(1, combined.length);
+      let baseMs = Math.max(1, Math.round(totalDurationMs / steps));
       baseMs = Math.min(Math.max(baseMs, 1), 500);
       // ensure starting hidden
       combined.forEach(t => { const p = t.dot._prevProps || {}; if (p.y !== PX.neg100) { t.dot.setProperty(prop.MORE, { y: PX.neg100 }); t.dot._prevProps = { y: PX.neg100 }; } });
@@ -692,6 +742,15 @@ export function drawGraph(skipDots = false, stagger) {
   drawGraph._renderCount = (drawGraph._renderCount || 0) + 1;
   if (drawGraph._perfEnabled && typeof console !== 'undefined' && console.timeEnd) console.timeEnd('drawGraph');
   drawGraph._isRendering = false;
+}
+
+// Force a staggered draw: clear any no-stagger window and request a staggered draw.
+export function forceStaggeredDraw() {
+  try {
+    drawGraph._noStaggerUntil = 0;
+    drawGraph._instantReveal = false;
+    drawGraph(false, true);
+  } catch (e) {}
 }
 
 // Public helper: request the next draw apply instantly (no stagger)

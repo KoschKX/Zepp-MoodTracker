@@ -23,12 +23,13 @@ export const setTodayMood = (v) => {
 };
 export const unsetTodayMood = () => {
 	const dateKey = calc.formatDateKey(state.getDebugDate());
+	// Remove in-memory entry first so subsequent reads see it as gone.
 	state.unsetMoodHistoryByDate(dateKey);
+	// Persist the removal immediately so any synchronous UI redraws
+	// that attempt to reload from storage won't rehydrate the removed value.
+	try { storage.saveMoodData(dateKey); } catch (e) {}
+	// Notify remote asynchronously
 	setTimeout(() => {
-		try {
-			storage.saveMoodData(dateKey);
-		} catch (e) {}
-		// SINGLE
 		try { sendDataToPhone(JSON.stringify({ [dateKey]: null })); } catch (e) {}
 	}, 0);
 };

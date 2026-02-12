@@ -44,6 +44,7 @@ Page({
     graph.drawGraph.debugDateText = debugDateText;
     debugDateText.addEventListener?.(event.CLICK_DOWN, () => { 
       state.setDebugDayOffset(0); 
+      graph.drawGraph(false, true);
       header.updateHeader(debugDateText, statusText, graph.getGraphWindowMode());
     });
 
@@ -84,6 +85,12 @@ Page({
           header.updateHeader(debugDateText, statusText, graph.getGraphWindowMode());
       }
     };
+      
+    graph.onGraphWindowModeChange(() => {
+      //graph._stagger=true;
+      graph.drawGraph(false, true);
+      console.log('pre draw callback');
+    });
     
     const leftArrow = createWidget(widget.TEXT, { text: '«', x: PX.x50, y: PX.x36, w: PX.x80, h: PX.x70, color: 0xff6600, text_size: PX.x78, align_h: align.CENTER_H, align_v: align.CENTER_V  });
           leftArrow.addEventListener?.(event.CLICK_DOWN, () => navigateDate(-1));

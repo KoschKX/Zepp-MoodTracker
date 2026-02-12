@@ -5,6 +5,7 @@ import * as data from '../functions/data';
 import * as calc from '../functions/calc';
 import * as state from '../functions/state';
 import * as ui from '../functions/ui';
+import * as smileys from './smileys';
 
 export function updateHeader(debugDateTextWidget, statusTextWidget, graphWindowMode) {
   try {
@@ -28,6 +29,12 @@ export function updateHeader(debugDateTextWidget, statusTextWidget, graphWindowM
       prefix = 'Today: ';
     }
     statusTextWidget?.setProperty?.(prop.MORE, displayMood ? { text: `${prefix}${moodData?.name || ''}`, color: moodData?.color || 0x888888 } : { text: isViewingToday ? 'Tap your mood!' : 'No record', color: 0xffffff, text_size: PX.x24 });
+    try {
+      const imgWidgets = ui.updateMoodButtonsVisibility?.imgWidgets;
+      if (imgWidgets && Array.isArray(imgWidgets)) {
+        smileys.updateSmileysAlpha(imgWidgets);
+      }
+    } catch (e) { /* noop */ }
   } catch (e) { /* noop */ }
 }
 

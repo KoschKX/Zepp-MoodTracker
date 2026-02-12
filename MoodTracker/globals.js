@@ -32,7 +32,7 @@ export const ATTACH_DOT_TAP_EVENTS = true;
 export const HIDE_DOTS_DURING_NAV_WEEK = false;
 export const HIDE_DOTS_DURING_NAV_MONTH = true;
 export const ENABLE_STAGGER_DOT_REVEAL = true;
-export const STAGGER_DOT_REVEAL_MS = 300;
+export const STAGGER_DOT_REVEAL_MS = 100;
 
 // DATA
 export const ASYNC_DATA = false;
