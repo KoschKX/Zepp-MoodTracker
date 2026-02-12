@@ -16,9 +16,7 @@ export const setTodayMood = (v) => {
 	}
     setTimeout(() => {
     	const lastMoodData = JSON.stringify({ [dateKey]: state.getMoodHistoryByDate(dateKey) });
-		if(globals.IMMEDIATE_SAVE){
-			storage.saveMoodData(dateKey);
-		}
+		storage.saveMoodData(dateKey);
     	sendDataToPhone(lastMoodData);
 	}, 0);
 	return;
@@ -175,9 +173,39 @@ export function checkMoodParam(params) {
 	}
 }
 
-// CALC
-
-
+export function SaveAll(){
+	try {
+		if (typeof easyStorage.getAllKeys === 'function') {
+			const keys = easyStorage.getAllKeys() || [];
+			const agg = {};
+			for (const k of keys) {
+				try {
+					if (!k || typeof k !== 'string') continue;
+					if (!k.startsWith('mood_')) continue;
+					const v = typeof easyStorage.getKey === 'function' ? easyStorage.getKey(k) : null;
+					if (v == null) continue;
+					const datePart = k.substr(5);
+					const parts = datePart.split('-');
+					if (parts.length !== 3) continue;
+					const [y, mRaw, dRaw] = parts;
+					const m = String(Number(mRaw)).padStart(2, '0');
+					const d = String(Number(dRaw)).padStart(2, '0');
+					if (!agg[y]) agg[y] = {};
+					if (!agg[y][m]) agg[y][m] = {};
+					agg[y][m][d] = v;
+				} catch (e) { /* ignore per-key errors */ }
+			}
+			try { if (typeof easyStorage.setKey === 'function') easyStorage.setKey('mood_history', JSON.stringify(agg)); } catch (e) { }
+		} else {
+			// Fallback: snapshot and convert
+			try {
+				const snap = typeof easyStorage.getStorageSnapshot === 'function' ? easyStorage.getStorageSnapshot(true) : {};
+				const agg = toNested(snap);
+				if (typeof easyStorage.setKey === 'function') easyStorage.setKey('mood_history', JSON.stringify(agg));
+			} catch (e) {}
+		}
+	} catch (e) { }
+}
 
 // HELPERS 
 export function toNested(obj) {

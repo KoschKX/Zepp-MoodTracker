@@ -19,7 +19,7 @@ export const SKIP_UI_UPDATES_DURING_NAV = true;
 export const ATTACH_DOT_TAP_EVENTS = true;
 
 export const ASYNC_DATA = false;
-export const IMMEDIATE_SAVE = true;
+export const IMMEDIATE_SAVE = false;
 
 // --- GZIP SETTINGS ---
 export const ENABLE_COMPRESSION_OUTGOING = true; 

@@ -6,7 +6,7 @@ export const getItem = (key) => { return easystorage.getItem(key); }
 export const setItem = (key, value) => { easystorage.setItem(key, value); }
 export const removeItem = (key) => { easystorage.removeItem(key); }
 
-//export const saveMoodData = () => storage.setItem('mood_history', state.getMoodHistoryStringByDate());
+
 export const saveMoodData = (dateKey = null) => {
 	const all = state.getMoodHistoryByDateAll();
 	if (dateKey) {
@@ -17,20 +17,13 @@ export const saveMoodData = (dateKey = null) => {
 			const val = String(all[y][m][d]);
 			state.setMoodHistoryByDate(key, val);
 			if(val == 0 || !val || isNaN(Number(val)) ) {
-				easystorage.processData('delete', { data: { [key]: 0}, log: false, onDone: function(){
-					const data = easystorage.retrieveData(false, true, {onDone: null } );
-					console.log('MOOD KEYS (storage):', data);
-				}}); 
+				easystorage.removeItem(key);
 			}else{
-				easystorage.processData('save', { data: { [key]: val }, log: false , onDone: function(){
-					const data = easystorage.retrieveData(false, true, {onDone: null } );
-					console.log('MOOD KEYS (storage):', data);
-				}}); 
+				easystorage.setItem(key, val);
+				// commitData removed here — commit will occur on app exit only
 			}
 		}
-	} else {
-		//easystorage.processPayload(action = 'save', opts = {data: { [key]: value }}); 
-	}
+	} 
 };
 
 export const loadMoodData = () => {
