@@ -316,6 +316,7 @@ const initDebug = ({ props, safeGet, getBool }) => {
                   whiteSpace: 'pre-wrap'
                 }
               }, ``),
+              
               View({
                 style: {
                   display: 'flex',

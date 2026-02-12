@@ -1,15 +1,12 @@
 import { createWidget, widget, align, prop, event } from '@zos/ui';
 import { px } from '@zos/utils';
-import { push } from '@zos/router';
-import { localStorage } from '@zos/storage';
-import { sendMoodDataToPhone } from '../utils/sync';
 
-import * as funcs from './functions/funcs';
-import * as globals from './globals';
-import * as state from './functions/state';
-import * as data from './functions/data';
-import * as graph from './functions/graph';
-import * as ui from './functions/ui';
+import * as globals from '../globals';
+import * as calc from '../functions/calc';
+import * as state from '../functions/state';
+import * as data from '../functions/data';
+import * as graph from '../functions/graph';
+import * as ui from '../functions/ui';
 
 const raf = (typeof requestAnimationFrame !== 'undefined') ? requestAnimationFrame : (cb) => setTimeout(cb, 16);
 
@@ -23,7 +20,7 @@ Page({
     data.checkMoodParam(params);
     data.checkDataChange(
       function(){
-        funcs.navigateToPage('page/sync_page', { targetPage: 'page/week_page', forceSync: true });
+        ui.navigateToPage('page/sync_page', { targetPage: 'page/week_page', forceSync: true });
       }
     );
   },
@@ -47,16 +44,16 @@ Page({
     const imgWidgets = globals.moods.map((mood, i) => { 
       const img = createWidget(widget.IMG, { x: px(PX.x45 + i * PX.x68), y: PX.x120, w: PX.x64, h: PX.x64, src: mood.img, alpha: todayMood === mood.value ? 255 : 180 }); 
       img.addEventListener?.(event.CLICK_DOWN, () => { 
-        const dateKey = data.formatDateKey(state.getDebugDate());
+        const dateKey = calc.formatDateKey(state.getDebugDate());
         const currentMood =  state.getMoodHistoryByDate(dateKey);
           console.log('[MoodPage] Before click:', {dateKey, currentMood});
         if (currentMood === mood.value) {
           console.log('[MoodPage] Clearing mood for dateKey:', dateKey);
           state.setMoodHistoryCache(null);
-          data.setTodayMood(0);
+          data.unsetTodayMood();
           imgWidgets.forEach((w) => w.setProperty?.(prop.MORE, { alpha: 180 }));
           graph.drawGraph(false);
-          console.log('[MoodPage] After clear:', {dateKey, mood: state.getMoodHistoryByDate(dateKey)});
+            console.log('[MoodPage] After clear:', {dateKey, mood: state.getMoodHistoryByDate(dateKey)});
         } else {
           state.setMoodHistoryCache(null);
           data.setTodayMood(mood.value);

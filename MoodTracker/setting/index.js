@@ -8,9 +8,28 @@ const Advanced = ADVANCED_MODE ? require('./advanced') : null;
 
 AppSettingsPage({
   build(props) {
-    // Heads up: settingsStorage.addListener isn't in the ZeppOS companion
-    // App-side storage changes still trigger a refresh when needed
-    const storage = props.settingsStorage;
+
+  const storage = props.settingsStorage;
+
+  function toNested(obj) {
+    if (!obj || typeof obj !== 'object') return {};
+    const nested = {};
+    for (const key in obj) {
+      if (/^\d{4}-\d{1,2}-\d{1,2}$/.test(key)) {
+        const [y, mRaw, dRaw] = key.split('-');
+        const m = mRaw.padStart(2, '0');
+        const d = dRaw.padStart(2, '0');
+        if (!nested[y]) nested[y] = {};
+        if (!nested[y][m]) nested[y][m] = {};
+        nested[y][m][d] = obj[key];
+      } else if (/^\d{4}$/.test(key) && typeof obj[key] === 'object') {
+        nested[key] = toNested(obj[key]);
+      }
+    }
+    return nested;
+  }
+
+
     // Listen for SYNC_MOOD_DATA messages from the app
     if (typeof window !== 'undefined') {
       window.onmessage = function(event) {
@@ -49,9 +68,12 @@ AppSettingsPage({
             if (typeof MessageBuilder !== 'undefined' && MessageBuilder && MessageBuilder.prototype) {
               // Use the ZeppOS MessageBuilder if available
               const builder = new MessageBuilder();
+              let params = msg.params || {};
+              params.data = toNested(params.data || {});
+              console.log('[SampleData] Forwarding GENERATE_SAMPLE_DATA to watch with params:', params);
               builder.request({
                 method: 'GENERATE_SAMPLE_DATA',
-                params: msg.params || {}
+                params: params
               });
             }
           } catch (e) {
@@ -193,6 +215,55 @@ AppSettingsPage({
       d = String(Number(d));
       return moodDataByDate?.[y]?.[m]?.[d] || 0;
     };
+
+    // Return flat YYYY-MM-DD -> value map for the current view window
+    const getCurrentViewData = () => {
+      const { startDate, endDate } = generateMoodDataForView();
+      if (!startDate || !endDate) return {};
+      const out = {};
+      const msPerDay = 24 * 60 * 60 * 1000;
+      let cur = new Date(startDate);
+      while (cur <= endDate) {
+        const key = formatDateKey(cur);
+        const val = getMoodValue(cur.getFullYear(), cur.getMonth() + 1, cur.getDate());
+        out[key] = val;
+        cur = new Date(cur.getTime() + msPerDay);
+      }
+      return out;
+    };
+
+    const getCurrentViewRange = () => {
+      console.log('[getCurrentViewRange] viewMode:', viewMode, 'referenceDate:', referenceDate);
+      const result = generateMoodDataForView(viewMode, referenceDate);
+      console.log('[getCurrentViewRange] generateMoodDataForView result:', result);
+      const { startDate, endDate } = result;
+      return { startDate, endDate };
+    }
+
+    const sampleDataGenerator = (sDate = null, eDate = null) => {
+      if (!sDate || !eDate) { return null;}
+      // Merge
+      let parsed = {};
+      const storedData = storage.getItem('moodData');
+      if (storedData && storedData !== '{}' && storedData !== 'null') {
+        try { parsed = JSON.parse(storedData); } catch (e) {}
+      }
+      date = new Date(sDate);
+      const sample = {};
+      while (date <= eDate) {
+        const key = formatDateKey(date);
+        const value = Math.random() < 0.7 ? Math.floor(Math.random() * 5) + 1 : 0;
+        if (value !== 0) {
+          sample[key] = value;
+          parsed[key] = value;
+        }
+        date.setDate(date.getDate() + 1);
+      }
+      // Save merged data to settingsStorage (phone)
+      storage.setItem('moodData', JSON.stringify(parsed));
+      return { sample, startDate: sDate, endDate: eDate };
+    }
+
 
     const generateMoodDataForView = (explicitViewMode, explicitReferenceDate) => {
       const mode = explicitViewMode !== undefined ? explicitViewMode : viewMode;
@@ -961,14 +1032,9 @@ AppSettingsPage({
           getViewDays,
           formatDateKey,
           getBool,
-          getCurrentViewRange: () => {
-            // Use explicit props, not closure
-            console.log('[getCurrentViewRange] viewMode:', viewMode, 'referenceDate:', referenceDate);
-            const result = generateMoodDataForView(viewMode, referenceDate);
-            console.log('[getCurrentViewRange] generateMoodDataForView result:', result);
-            const { startDate, endDate } = result;
-            return { startDate, endDate };
-          },
+          getCurrentViewRange,
+          getCurrentViewData,
+          sampleDataGenerator,
           debug: DEBUG_MODE
         }) : []),
 
@@ -1255,7 +1321,7 @@ AppSettingsPage({
                 lineHeight: '1.6',
                 marginBottom: '8px'
               }
-            }, "Your mood data is stored securely on your watch using localStorage. No data is sent to external servers or shared with third parties."),
+            }, "Your mood data is stored securely on your watch using storage. No data is sent to external servers or shared with third parties."),
             Text({
               style: {
                 fontSize: '14px',

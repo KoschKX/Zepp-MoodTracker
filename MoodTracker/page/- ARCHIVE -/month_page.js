@@ -1,15 +1,12 @@
 import { createWidget, widget, align, prop, event } from '@zos/ui';
 import { px } from '@zos/utils';
-import { push } from '@zos/router';
-import { localStorage } from '@zos/storage';
-import { sendMoodDataToPhone } from '../utils/sync';
 
-import * as funcs from './functions/funcs';
-import * as globals from './globals';
-import * as state from './functions/state';
-import * as data from './functions/data';
-import * as graph from './functions/graph';
-import * as ui from './functions/ui';
+import * as globals from '../globals';
+import * as calc from '../functions/calc';
+import * as state from '../functions/state';
+import * as data from '../functions/data';
+import * as graph from '../functions/graph';
+import * as ui from '../functions/ui';
 
 const raf = (typeof requestAnimationFrame !== 'undefined') ? requestAnimationFrame : (cb) => setTimeout(cb, 16);
 
@@ -25,7 +22,7 @@ Page({
     graph.setTapAreaUrl('page/week_page');
     data.checkDataChange(
       function(){
-        funcs.navigateToPage('page/sync_page', { targetPage: 'page/month_page', forceSync: true });
+        ui.navigateToPage('page/sync_page', { targetPage: 'page/month_page', forceSync: true });
       }
     );
   },
@@ -76,6 +73,7 @@ Page({
       graph.updateUIAfterDateChange(debugDateText, statusText, imgWidgets);
       setTimeout(() => { state.setInterpolationEnabled(true); graph.drawGraph(false); _loadingText.setProperty?.(prop.MORE, { y: px(-100) }); }, 100);
     });
+    
   },
   onShow() {},
   onHide() {

@@ -34,8 +34,6 @@
             "page/sync_page",
             "page/index",
             "page/mood_page",
-            "page/week_page",
-            "page/month_page",
             "page/mood_select"
           ]
         },

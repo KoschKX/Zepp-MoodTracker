@@ -48,7 +48,7 @@ Page({
   _lastClearToken: 0,
   _getClearedAtToken() {
     try {
-      const v = localStorage.getItem('mood_history_cleared_at');
+      const v = storage.getItem('mood_history_cleared_at');
       return v ? Number(v) : 0;
     } catch (e) {
       return 0;
@@ -60,7 +60,7 @@ Page({
       const token = this._getClearedAtToken();
       if (token && token !== this._lastClearToken) {
         this._lastClearToken = token;
-        try { localStorage.setItem('mood_history', '{}'); } catch (e) {}
+        try { storage.setItem('mood_history', '{}'); } catch (e) {}
       }
     } catch (e) {}
     if (this._clearPollTimer) clearInterval(this._clearPollTimer);
@@ -69,7 +69,7 @@ Page({
         const token = this._getClearedAtToken();
         if (token && token !== this._lastClearToken) {
           this._lastClearToken = token;
-          try { localStorage.setItem('mood_history', '{}'); } catch (e) {}
+          try { storage.setItem('mood_history', '{}'); } catch (e) {}
         }
       } catch (e) {}
     }, 1000);
@@ -139,7 +139,7 @@ Page({
         });
         // Jump to week_page with the mood value (it saves it)
         push({ 
-          url: 'page/week_page',
+          url: 'page/mood_page',
           params: { mood: mood.value }
         });
       });

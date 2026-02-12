@@ -1,6 +1,29 @@
-const buildAdvancedUI = ({ props, viewMode, referenceDate, getReferenceDate, getViewDays, formatDateKey, getBool, getCurrentViewRange }) => {
+const buildAdvancedUI = ({ props, viewMode, referenceDate, getReferenceDate, getViewDays, formatDateKey, getBool, getCurrentViewRange, getCurrentViewData, sampleDataGenerator }) => {
   const storage = props.settingsStorage;
   let isAdvancedExpanded = getBool('advancedExpanded', false);
+
+  function sampleDataGenerator(sDate = null, eDate = null) {
+    if (!sDate || !eDate) { return null;}
+    // Merge
+    let parsed = {};
+    const storedData = storage.getItem('moodData');
+    if (storedData && storedData !== '{}' && storedData !== 'null') {
+      try { parsed = JSON.parse(storedData); } catch (e) {}
+    }
+    date = new Date(sDate);
+    const sample = {};
+    while (date <= eDate) {
+      const key = formatDateKey(date);
+      // Always generate a non-zero mood so sample windows are fully populated
+      const value = Math.floor(Math.random() * 5) + 1;
+      sample[key] = value;
+      parsed[key] = value;
+      date.setDate(date.getDate() + 1);
+    }
+    // Save merged data to settingsStorage (phone)
+    storage.setItem('moodData', JSON.stringify(parsed));
+    return { sample, startDate: sDate, endDate: eDate };
+  }
 
   return [
     // Advanced toggle
@@ -88,88 +111,19 @@ const buildAdvancedUI = ({ props, viewMode, referenceDate, getReferenceDate, get
               cursor: 'pointer'
             },
             onClick: () => {
-              console.log('[ClearSection] Orange clear button pressed - handler is firing');
-              try {
-                // Only use settingsStorage (phone)
-                let parsed = {};
-                const storedData = storage.getItem('moodData');
-                console.log('[ClearSection] settingsStorage.moodData (before):', storedData);
-                if (storedData && storedData !== '{}' && storedData !== 'null') {
-                  parsed = JSON.parse(storedData);
-                }
-                // Get the current view's start and end date from the graph context
-                if (!getCurrentViewRange) {
-                  console.log('[ClearSection] ERROR: getCurrentViewRange is not defined or not a function:', getCurrentViewRange);
-                  return;
-                }
-                const range = typeof getCurrentViewRange === 'function' ? getCurrentViewRange() : {};
-                console.log('[ClearSection] getCurrentViewRange result:', range);
-                const startDate = range.startDate;
-                const endDate = range.endDate;
-                console.log('[ClearSection] startDate:', startDate, 'endDate:', endDate);
-                if (!startDate || !endDate) {
-                  console.log('[ClearSection] No start/end date:', startDate, endDate);
-                  return;
-                }
-                let date = new Date(startDate);
-                while (date <= endDate) {
-                  const key = formatDateKey(date);
-                  // Remove flat key
-                  if (parsed[key] !== undefined) delete parsed[key];
-                  // Remove nested key (use non-padded month/day)
-                  const y = String(date.getFullYear());
-                  const m = String(date.getMonth() + 1);
-                  const d = String(date.getDate());
-                  if (parsed[y] && parsed[y][m] && parsed[y][m][d] !== undefined) {
-                    delete parsed[y][m][d];
-                    if (Object.keys(parsed[y][m]).length === 0) delete parsed[y][m];
-                    if (Object.keys(parsed[y]).length === 0) delete parsed[y];
-                  }
-                  console.log('[ClearSection] Deleting key:', key, '| nested:', y, m, d);
-                  date.setDate(date.getDate() + 1);
-                }
-                // Clean up any empty year/month objects left behind (full sweep)
-                for (const y of Object.keys(parsed)) {
-                  if (/^\d{4}$/.test(y) && typeof parsed[y] === 'object') {
-                    for (const m of Object.keys(parsed[y])) {
-                      if (typeof parsed[y][m] === 'object' && Object.keys(parsed[y][m]).length === 0) {
-                        delete parsed[y][m];
-                      }
-                    }
-                    if (Object.keys(parsed[y]).length === 0) {
-                      delete parsed[y];
-                    }
-                  }
-                }
-                storage.setItem('moodData', JSON.stringify(parsed));
-                const after = storage.getItem('moodData');
-                console.log('[ClearSection] settingsStorage.moodData (after):', after);
-                
-                // Calculate days between startDate and endDate (inclusive)
-                const msPerDay = 24 * 60 * 60 * 1000;
-                const days = Math.round((endDate - startDate) / msPerDay) + 1;
-                const clearPayload = {
-                  referenceDate: endDate.toISOString(),
-                  days,
-                  timestamp: Date.now()
-                };
-                storage.setItem('clearMoodRange', JSON.stringify(clearPayload));
-                console.log('[ClearSection] clearMoodRange payload:', clearPayload);
-                // Send clear command to watch (using referenceDate and days)
-                if (window && window.postMessage) {
-                  const msg = { type: 'CLEAR_MOOD_DATA_RANGE', referenceDate: endDate.toISOString(), days };
-                  const gzipped = pako.gzip(JSON.stringify(msg));
-                  // Send both original and gzipped for compatibility
-                  window.postMessage({ ...msg, gzipped }, '*');
-                  console.log('[ClearSection] postMessage (gzipped):', gzipped);
-                }
-              } catch (e) {
-                console.log('[ClearSection] Exception:', e);
-              }
-              // Force UI refresh after clearing
-              if (typeof window !== 'undefined' && window.location && window.location.reload) {
-                setTimeout(() => window.location.reload(), 200);
-              }
+              const range = getCurrentViewRange();
+              const { startDate, endDate } = range;
+              const sample = getCurrentViewData();
+              const msPerDay = 24 * 60 * 60 * 1000;
+              const days = Math.round((endDate - startDate) / msPerDay) + 1;
+              const payload = {
+                data: sample,
+                startDate: startDate.toISOString(),
+                endDate: endDate.toISOString(),
+                days
+              };
+              storage.setItem('clearMoodRange', JSON.stringify(payload));
+              console.log('[PhoneData] Clear payload set:', payload);
             }
           }),
           Button({
@@ -219,33 +173,10 @@ const buildAdvancedUI = ({ props, viewMode, referenceDate, getReferenceDate, get
               marginBottom: '10px'
             },
             onClick: () => {
-              // Generate random mood data for the current view range
-              const range = typeof getCurrentViewRange === 'function' ? getCurrentViewRange() : {};
-              const { startDate, endDate } = range;
-              if (!startDate || !endDate) {
-                console.log('[SampleData] No start/end date:', startDate, endDate);
-                return;
-              }
-              // Merge with existing moodData
-              let parsed = {};
-              const storedData = storage.getItem('moodData');
-              if (storedData && storedData !== '{}' && storedData !== 'null') {
-                try { parsed = JSON.parse(storedData); } catch (e) {}
-              }
-              let date = new Date(startDate);
-              const sample = {};
-              while (date <= endDate) {
-                const key = formatDateKey(date);
-                const value = Math.random() < 0.7 ? Math.floor(Math.random() * 5) + 1 : 0;
-                if (value !== 0) {
-                  sample[key] = value;
-                  parsed[key] = value;
-                }
-                date.setDate(date.getDate() + 1);
-              }
-              // Save merged data to settingsStorage (phone)
-              storage.setItem('moodData', JSON.stringify(parsed));
-              // Also trigger sync to watch
+              const range = getCurrentViewRange();
+              const result = sampleDataGenerator(range.startDate, range.endDate);
+              if (!result) return;
+              const { sample, startDate, endDate } = result;
               const msPerDay = 24 * 60 * 60 * 1000;
               const days = Math.round((endDate - startDate) / msPerDay) + 1;
               const payload = {
@@ -263,5 +194,7 @@ const buildAdvancedUI = ({ props, viewMode, referenceDate, getReferenceDate, get
     ] : [])
   ];
 };
+
+
 
 module.exports = { buildAdvancedUI };

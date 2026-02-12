@@ -285,8 +285,7 @@ export class MessageBuilder extends EventBus {
 
     this.ble &&
       this.ble.createConnect((index, data, size) => {
-        DEBUG &&
-          logger.warn('[RAW] [R] receive index=>%d size=>%d bin=>%s', index, size, bin2hex(data))
+        DEBUG && logger.warn('[RAW] [R] receive index=%d size=%d', index, size)
         this.onFragmentData(data)
       })
 
@@ -310,8 +309,7 @@ export class MessageBuilder extends EventBus {
 
     messaging &&
       messaging.peerSocket.addListener('message', (message) => {
-        DEBUG &&
-          logger.warn('[RAW] [R] receive size=>%d bin=>%s', message.byteLength, bin2hex(message))
+        DEBUG && logger.warn('[RAW] [R] receive size=%d', message.byteLength)
         this.onMessage(message)
       })
 
@@ -451,7 +449,7 @@ export class MessageBuilder extends EventBus {
 
   sendBin(buf, debug = DEBUG) {
     // ble 发送消息
-    debug && logger.warn('[RAW] [S] send size=%d bin=%s', buf.byteLength, bin2hex(buf.buffer))
+    debug && logger.warn('[RAW] [S] send size=%d', buf.byteLength)
     const result = this.ble.send(buf.buffer, buf.byteLength)
 
     if (!result) {
@@ -461,7 +459,7 @@ export class MessageBuilder extends EventBus {
 
   sendBinBySide(buf, debug = DEBUG) {
     // side 发送消息
-    debug && logger.warn('[RAW] [S] send size=%d bin=%s', buf.byteLength, bin2hex(buf.buffer))
+    debug && logger.warn('[RAW] [S] send size=%d', buf.byteLength)
     messaging.peerSocket.send(buf.buffer)
   }
 
@@ -868,7 +866,8 @@ export class MessageBuilder extends EventBus {
     const data = this.readBin(bin)
     this.emit('raw', bin)
 
-    DEBUG && logger.debug('receive data=>', JSON.stringify(data))
+    // Log concise header info only to avoid expensive JSON/string conversions
+    DEBUG && logger.debug('[RAW] fragment header => totalLength=%d payloadLength=%d payloadType=%d', data.totalLength, data.payloadLength, data.payloadType)
     if (data.flag === MessageFlag.App && data.type === MessageType.Shake) {
       this.appSidePort = data.port2
       logger.debug('appSidePort=>', data.port2)
@@ -966,7 +965,7 @@ export class MessageBuilder extends EventBus {
 
       const transact = ({ traceId, payload, dataType }) => {
         this.errorIfBleDisconnect()
-        DEBUG && logger.debug('traceId=>%d payload=>%s', traceId, payload.toString('hex'))
+        DEBUG && logger.debug('traceId=>%d payloadLen=>%d', traceId, payload ? payload.byteLength : 0)
         if (traceId === requestId) {
           let result
           switch (dataType) {
@@ -983,8 +982,8 @@ export class MessageBuilder extends EventBus {
               result = buf2str(payload)
               break
           }
-          DEBUG && logger.debug('request id=>%d payload=>%j', requestId, data)
-          DEBUG && logger.debug('response id=>%d payload=>%j', requestId, result)
+          DEBUG && logger.debug('request id=>%d payloadType=%s', requestId, typeof data)
+          DEBUG && logger.debug('response id=>%d resultType=%s', requestId, typeof result)
 
           this.off('response', transact)
           this.off('error', error)

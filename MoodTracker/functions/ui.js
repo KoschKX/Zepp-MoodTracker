@@ -1,7 +1,6 @@
 import { createWidget, widget, align, prop, event } from '@zos/ui';
 import { px } from '@zos/utils';
-import * as globals from '../globals';
-import * as state from './state';
+import { push } from '@zos/router';
 
 // PRECALCULATED PIXEL VALUES
 let PX = null;
@@ -18,3 +17,18 @@ export const updateMoodButtonsVisibility = (graphWindowMode = 0) => {
     updateMoodButtonsVisibility.imgWidgets.forEach(w => w.setProperty?.(prop.MORE, { y }));
   }
 };
+
+
+// --- PAGE NAV ----
+export function navigateToPage(url, params) {
+	if (typeof url === 'string' && url.length > 0) {
+		try {
+			console.log('[navigateToPage] Attempting navigation to:', url);
+			push({  url: url, params: params  });
+		} catch (e) {
+			console.log('[navigateToPage] Navigation error:', e);
+		}
+	} else {
+		console.log('[navigateToPage] Invalid URL:', url);
+	}
+}

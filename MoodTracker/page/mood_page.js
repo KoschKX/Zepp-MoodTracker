@@ -1,15 +1,13 @@
 import { createWidget, widget, align, prop, event } from '@zos/ui';
 import { px } from '@zos/utils';
-import { push } from '@zos/router';
-import { localStorage } from '@zos/storage';
-import { sendMoodDataToPhone } from '../utils/sync';
 
-import * as funcs from './functions/funcs';
-import * as globals from './globals';
-import * as state from './functions/state';
-import * as data from './functions/data';
-import * as graph from './functions/graph';
-import * as ui from './functions/ui';
+import * as globals from '../globals';
+import * as calc from '../functions/calc';
+import * as state from '../functions/state';
+import * as storage from '../functions/storage';
+import * as data from '../functions/data';
+import * as graph from '../functions/graph';
+import * as ui from '../functions/ui';
 
 const raf = (typeof requestAnimationFrame !== 'undefined') ? requestAnimationFrame : (cb) => setTimeout(cb, 16);
 
@@ -19,14 +17,8 @@ Page({
     state.setMoodHistoryCache(null);
     graph.setGraphWindowMode(0);
     graph.setMaxMoodDots(31);
-    data.reloadMoodDataFromStorage();
-    // graph.setTapAreaUrl('page/month_page');
+    storage.loadMoodData();
     data.checkMoodParam(params);
-    data.checkDataChange(
-      function(){
-        funcs.navigateToPage('page/sync_page', { targetPage: 'page/mood_page', forceSync: true });
-      }
-    );
   },
   build() {
     const PX = ui.getPX();
@@ -48,11 +40,11 @@ Page({
     const imgWidgets = globals.moods.map((mood, i) => { 
       const img = createWidget(widget.IMG, { x: px(PX.x45 + i * PX.x68), y: PX.x120, w: PX.x64, h: PX.x64, src: mood.img, alpha: todayMood === mood.value ? 255 : 180 }); 
       img.addEventListener?.(event.CLICK_DOWN, () => { 
-        const dateKey = data.formatDateKey(state.getDebugDate());
+        const dateKey = calc.formatDateKey(state.getDebugDate());
         const currentMood =  state.getMoodHistoryByDate(dateKey);
         if (currentMood === mood.value) {
           state.setMoodHistoryCache(null);
-          data.setTodayMood(0);
+          data.unsetTodayMood();
           imgWidgets.forEach((w) => w.setProperty?.(prop.MORE, { alpha: 180 }));
           graph.drawGraph(false);
         } else {
@@ -99,12 +91,12 @@ Page({
     setTimeout(() => { state.setInterpolationEnabled(true); graph.drawGraph(false); _loadingText.setProperty?.(prop.MORE, { y: px(-100) }); }, 100); 
 
     // Defer heavy graph/UI work until after first paint
-    //(typeof requestAnimationFrame !== 'undefined' ? requestAnimationFrame : setTimeout)(() => {
+   (typeof requestAnimationFrame !== 'undefined' ? requestAnimationFrame : setTimeout)(() => {
       graph.drawGraph.statusText = statusText;
       graph.drawGraph(false); // always use cached data, never force reload
       graph.updateUIAfterDateChange(debugDateText, statusText, imgWidgets);
       setTimeout(() => { state.setInterpolationEnabled(true); graph.drawGraph(false); _loadingText.setProperty?.(prop.MORE, { y: px(-100) }); }, 100);
-    //});
+    });
 
   },
   onShow() {

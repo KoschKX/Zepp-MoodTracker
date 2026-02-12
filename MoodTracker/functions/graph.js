@@ -4,8 +4,8 @@ import { px } from '@zos/utils';
 import * as globals from '../globals';
 import * as state from './state';
 import * as ui from './ui';
+import * as calc from './calc';
 import * as data from './data';
-import * as funcs from './funcs';
 
 // TAP AREA
 let TAPAREA_CALLBACK = null;
@@ -59,7 +59,7 @@ export function drawGraph(skipDots = false) {
   setMaxMoodDots(windowSize);
 
   // Pull mood data for the current window
-  const moodData = data.getMoodHistoryForDays(windowSize, getGraphWindowMode() === 1);
+  const moodData = state.getMoodHistoryForDays(windowSize, getGraphWindowMode() === 1);
   
   // Date offset changed? redraw dots
   const dateOffsetChanged = lastDebugOffset !== state.getDebugDayOffset();
@@ -118,7 +118,7 @@ export function drawGraph(skipDots = false) {
       if (handled === true) return;
     }
     if (TAPAREA_URL && typeof TAPAREA_URL === 'string' && TAPAREA_URL.length > 0) {
-      funcs.navigateToPage(TAPAREA_URL);
+      ui.navigateToPage(TAPAREA_URL);
       return;
     }
     setGraphWindowMode((getGraphWindowMode() + 1) % 2);
@@ -127,7 +127,7 @@ export function drawGraph(skipDots = false) {
     }
     if (drawGraph.statusText) {
       const isMonthMode = getGraphWindowMode() === 1;
-      const displayMood = isMonthMode ? data.getMonthAverageMood() : data.getTodayMood();
+      const displayMood = isMonthMode ? calc.getMonthAverageMood(state.getDebugDate(), state.getMoodHistoryByDateAll()) : data.getTodayMood();
       const moodData = displayMood ? globals.moodValueMap[displayMood] : null;
       const isViewingToday = state.getDebugDayOffset() === 0;
       let prefix = '';
@@ -471,8 +471,8 @@ export const refreshMoodDataAndUI = () => {
         storageWriteTimeout = null;
     }
     state.setInterpolationEnabled(false);
-    _moodDataByDate = {};
-    data.reloadMoodDataFromStorage();
+    // _moodDataByDate = {};
+    // storage.reloadMoodDataFromStorage();
     state.setMoodHistoryCache(null);
     state.setMoodHistoryCacheKey(null);
     state.setMoodHistoryCache(null);
@@ -497,7 +497,7 @@ export const updateUIAfterDateChange = (debugDateText, statusText, imgWidgets,) 
     const updateMoodUI = () => {
         const PX = ui.getPX();
         
-        const displayMood = getGraphWindowMode() ? data.getMonthAverageMood() : data.getTodayMood();
+        const displayMood = getGraphWindowMode() ? calc.getMonthAverageMood(calc.getMonthAverageMood(state.getDebugDate(), state.getMoodHistoryByDateAll())) : data.getTodayMood();
         if (displayMood === _prevDisplayedMood) return;
         const moodData = displayMood ? globals.moodValueMap[displayMood] : null, isToday = state.getDebugDayOffset() === 0;
         let prefix = '';

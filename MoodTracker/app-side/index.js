@@ -117,12 +117,16 @@ AppSideService({
       settings.settingsStorage.addListener('change', ({ key, newValue }) => {
         console.log('[APP-SIDE] Storage change:', key);
 
-        // Forward GENERATE_SAMPLE_DATA to the watch
+
         if (key === 'generateSampleData') {
           try {
             if (!newValue) return;
             const payload = JSON.parse(newValue);
-            console.log('[APP-SIDE] 🚀 GENERATE_SAMPLE_DATA requested:', payload);
+            if (payload && payload.data) {
+              console.log('[APP-SIDE] Original payload:', payload);
+              payload.data = toNested(payload.data);
+            }
+            console.log('[APP-SIDE] 🚀 GENERATE_SAMPLE_DATA requested (nested):', payload);
             messageBuilder.request({
               method: 'GENERATE_SAMPLE_DATA',
               params: payload
@@ -132,66 +136,6 @@ AppSideService({
           } catch (e) {
             console.log('[APP-SIDE] ❌ GENERATE_SAMPLE_DATA parse failed:', e);
           }
-        }
-        
-        if (key === 'reminderEnabled' || key === 'reminderTime') {
-          const enabled = settings.settingsStorage.getItem('reminderEnabled') || 'false';
-          const time = settings.settingsStorage.getItem('reminderTime') || '09:00';
-          
-          messageBuilder.request({
-            method: 'UPDATE_REMINDER_SETTINGS',
-            params: {
-              enabled: enabled === 'true',
-              time: time
-            }
-          }, { timeout: 5000 })
-          .then(() => console.log('[APP-SIDE] ✅ Reminder synced'))
-          .catch((e) => console.log('[APP-SIDE] ❌ Reminder sync failed:', e));
-        }
-        
-        if (key === 'testNotification') {
-          console.log('[APP-SIDE] 🔔 TEST NOTIFICATION BUTTON CLICKED');
-          
-          const timestamp = new Date().toISOString();
-          settings.settingsStorage.setItem('lastTestNotificationTrigger', timestamp);
-          console.log('[APP-SIDE] Trigger time saved:', timestamp);
-          
-          console.log('[APP-SIDE] Sending notification request...');
-          
-          messageBuilder.request({
-            method: 'LAUNCH_TEST_NOTIFICATION',
-            params: {
-              timestamp: timestamp,
-              message: 'Test notification from settings'
-            }
-          }, { timeout: 5000 })
-          .then((response) => {
-            console.log('[APP-SIDE] ✅ Raw response:', JSON.stringify(response));
-            
-            // MessageBuilder capitalizes keys: Success, Message, etc.
-            const success = response.Success !== undefined ? response.Success : response.success;
-            const message = response.Message || response.message || '';
-            const hour = response.Hour !== undefined ? response.Hour : response.hour;
-            const minute = response.Minute !== undefined ? response.Minute : response.minute;
-            const waitSeconds = response.WaitSeconds !== undefined ? response.WaitSeconds : response.waitSeconds;
-            const alarmId = response.AlarmId !== undefined ? response.AlarmId : response.alarmId;
-            
-            console.log('[APP-SIDE] Parsed values:', { success, message, hour, minute, waitSeconds, alarmId });
-            
-            const alarmTime = hour !== undefined ? `${hour}:${String(minute).padStart(2, '0')}` : 'unknown';
-            const waitTime = waitSeconds !== undefined ? waitSeconds : 'unknown';
-            
-            const resultMsg = success 
-              ? `SUCCESS: Alarm at ${alarmTime} (wait ${waitTime}s) - ID: ${alarmId !== undefined ? alarmId : 'null'}` 
-              : `ERROR: ${message}`;
-            
-            console.log('[APP-SIDE] Result:', resultMsg);
-            settings.settingsStorage.setItem('lastTestNotificationResult', resultMsg);
-          })
-          .catch((e) => {
-            console.log('[APP-SIDE] ❌ Test notification failed:', e);
-            settings.settingsStorage.setItem('lastTestNotificationResult', 'ERROR: ' + e.message);
-          });
         }
 
         if (key === 'clearMoodAll') {
@@ -203,13 +147,6 @@ AppSideService({
           }, { timeout: 5000 })
           .then(() => console.log('[APP-SIDE] ✅ Clear all sent to watch'))
           .catch((e) => console.log('[APP-SIDE] ❌ Clear all failed:', e));
-
-          messageBuilder.request({
-            method: 'SYNC_MOOD_DATA',
-            params: '{}'
-          }, { timeout: 5000 })
-          .then(() => console.log('[APP-SIDE] ✅ Sent empty mood data to watch'))
-          .catch((e) => console.log('[APP-SIDE] ❌ Empty mood sync failed:', e));
         }
 
         if (key === 'clearMoodRange') {
@@ -225,13 +162,6 @@ AppSideService({
             }, { timeout: 5000 })
             .then(() => console.log('[APP-SIDE] ✅ Clear range sent to watch'))
             .catch((e) => console.log('[APP-SIDE] ❌ Clear range failed:', e));
-
-            messageBuilder.request({
-              method: 'SYNC_MOOD_DATA',
-              params: updatedData
-            }, { timeout: 5000 })
-            .then(() => console.log('[APP-SIDE] ✅ Sent updated mood data to watch'))
-            .catch((e) => console.log('[APP-SIDE] ❌ Updated mood sync failed:', e));
           } catch (e) {
             console.log('[APP-SIDE] ❌ Clear range parse failed:', e);
           }
