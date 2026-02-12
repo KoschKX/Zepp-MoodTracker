@@ -6,7 +6,7 @@ export const ADAPTIVE_INTERPOLATION_DOTS = true;
 export const SHOW_TODAY_ARROW = false;
 export const SHOW_CENTER_LINE = true;
 export const SHOW_GRID_DOTS = false;
-export const TARGET_FPS = 60;
+export const TARGET_FPS = 30;
 export const FRAME_TIME = Math.floor(1000 / TARGET_FPS);
 export const DEBOUNCE_MULTIPLIER = 1;
 export const INSTANT_NAV = true;
@@ -22,7 +22,7 @@ export const ATTACH_DOT_TAP_EVENTS = true;
 // Enable a left-to-right staggered reveal for the pooled mood dots
 export const ENABLE_STAGGER_DOT_REVEAL = true;
 // Milliseconds between revealing each pooled mood dot
-export const STAGGER_DOT_REVEAL_MS = 150;
+export const STAGGER_DOT_REVEAL_MS = 300;
 // NOTE: interpolation dots use the same stagger settings as main dots
 
 export const ASYNC_DATA = false;

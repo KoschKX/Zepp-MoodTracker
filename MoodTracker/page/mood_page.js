@@ -8,6 +8,7 @@ import * as storage from '../functions/storage';
 import * as data from '../functions/data';
 import * as graph from '../functions/graph';
 import * as header from '../functions/header';
+import * as legend from '../functions/legend';
 import * as ui from '../functions/ui';
 
 const raf = (typeof requestAnimationFrame !== 'undefined') ? requestAnimationFrame : (cb) => setTimeout(cb, 16);
@@ -105,8 +106,8 @@ Page({
           graph.drawGraph(false, true);
           header.updateHeader(debugDateText, statusText, graph.getGraphWindowMode());
       }
-      
     };
+    
     const leftArrow = createWidget(widget.TEXT, { text: '«', x: PX.x50, y: PX.x36, w: PX.x80, h: PX.x70, color: 0xff6600, text_size: PX.x78, align_h: align.CENTER_H, align_v: align.CENTER_V  });
           leftArrow.addEventListener?.(event.CLICK_DOWN, () => navigateDate(-1));
     const rightArrow = createWidget(widget.TEXT, { text: '»', x: PX.x296, y: PX.x36, w: PX.x80, h: PX.x70, color: 0xff6600, text_size: PX.x78, align_h: align.CENTER_H, align_v: align.CENTER_V });
@@ -116,11 +117,16 @@ Page({
     _loadingText = createWidget(widget.TEXT, { text: '...', x: px(182), y: px(226), w: px(60), h: px(30), color: 0x888888, text_size: px(24), align_h: align.CENTER_H, align_v: align.CENTER_V });
 
     state.setInterpolationEnabled(true);
-    
-    // Defer heavy graph/UI work until after first paint
-   (typeof requestAnimationFrame !== 'undefined' ? requestAnimationFrame : setTimeout)(() => {
-    graph.drawGraph(false, true); // always use cached data, never force reload
     header.updateHeader(debugDateText, statusText, graph.getGraphWindowMode());
+    // place legend just below the smileys immediately so it doesn't wait for RAF
+    try {
+      const legendTop = 325;
+      legend.ensureLegend(graph.drawGraph, PX, legendTop);
+      legend.refreshLegendCounts(graph.drawGraph);
+    } catch (e) {}
+
+   (typeof requestAnimationFrame !== 'undefined' ? requestAnimationFrame : setTimeout)(() => {
+    graph.drawGraph(false, true); 
     setTimeout(() => { state.setInterpolationEnabled(true); _loadingText.setProperty?.(prop.MORE, { y: px(-100) }); }, 100);
    });
 

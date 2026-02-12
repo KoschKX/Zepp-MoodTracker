@@ -515,6 +515,7 @@ export function drawGraph(skipDots = false, stagger) {
     const pxXAxisY = px(xAxisY);
     // Defer creating a large number of x-axis label widgets when entering month mode
     const deferLabels = getGraphWindowMode() === 1 && !drawGraph._monthPoolsInitialized;
+    const centerIndex = Math.floor(dataLen / 2);
     for (let i = 0; i < 31; i++) {
       if (i < labelCount) {
         if (!drawGraph.xAxisLabelWidgets[i]) {
@@ -534,13 +535,41 @@ export function drawGraph(skipDots = false, stagger) {
           ({ day: dayNum, isToday } = moodData[idx]);
         }
         const cx = graphLeft + idx * stripeWidth + halfStripe;
-        const newX = px(cx - 15), newY = isToday ? px(xAxisY - 3) : pxXAxisY, newText = String(dayNum), newColor = isToday ? (globals.SHOW_TODAY_ARROW ? 0x000000 : 0xffffff) : 0x888888, newSize = isToday ? PX.x16 : PX.x14;
+        const newX = px(cx - 15);
+        const newText = String(dayNum);
+        const isCenter = (idx === centerIndex && getGraphWindowMode() === 0);
+        let newColor, newSize, newY, newH;
+        if (isCenter && isToday) {
+          // center and today -> big white
+          newColor = 0xffffff;
+          newSize = PX.x20;
+          newY = px(xAxisY - 6);
+          newH = PX.x24;
+        } else if (isCenter) {
+          // center (not today) -> arrow orange
+          newColor = 0xff6600;
+          newSize = PX.x20;
+          newY = px(xAxisY - 6);
+          newH = PX.x24;
+        } else if (isToday) {
+          // today (not center) -> medium white
+          newColor = 0xffffff;
+          newSize = PX.x20;
+          newY = px(xAxisY - 6);
+          newH = PX.x24;
+        } else {
+          // normal labels
+          newColor = 0x888888;
+          newSize = PX.x14;
+          newY = pxXAxisY;
+          newH = PX.x20;
+        }
         const label = drawGraph.xAxisLabelWidgets[i];
         if (label) {
           const prev = label._prevProps || {};
-          if (prev.x !== newX || prev.y !== newY || prev.text !== newText || prev.color !== newColor || prev.text_size !== newSize) {
-            label.setProperty(prop.MORE, { x: newX, y: newY, text: newText, color: newColor, text_size: newSize });
-            label._prevProps = { x: newX, y: newY, text: newText, color: newColor, text_size: newSize };
+          if (prev.x !== newX || prev.y !== newY || prev.text !== newText || prev.color !== newColor || prev.text_size !== newSize || prev.h !== newH) {
+            label.setProperty(prop.MORE, { x: newX, y: newY, text: newText, color: newColor, text_size: newSize, h: newH });
+            label._prevProps = { x: newX, y: newY, text: newText, color: newColor, text_size: newSize, h: newH };
           }
         }
       } else if (i < prevLabelCount && drawGraph.xAxisLabelWidgets[i]) {
@@ -615,9 +644,9 @@ export const refreshMoodDataAndUI = () => {
     state.setPrevDisplayedMood(null);
     if (_loadingText) _loadingText.setProperty?.(prop.MORE, { y: px(226) });
     if (drawGraph) drawGraph(true);
-    if (drawGraph && drawGraph.debugDateText && drawGraph.statusText && imgWidgets) {
+    //if (drawGraph && drawGraph.debugDateText && drawGraph.statusText && imgWidgets) {
         //updateUIAfterDateChange(drawGraph.debugDateText, drawGraph.statusText, imgWidgets);
-    }
+    //}
     setTimeout(() => {
         try {
         state.setInterpolationEnabled(true);
