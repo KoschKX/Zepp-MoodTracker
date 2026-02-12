@@ -41,13 +41,8 @@ const json_mood = 'moodData.json';
             const nk = normalizeKeyForStorageLocal(key);
             const action = (value == null || value === '' || value === undefined) ? 'delete' : 'save';
             const entry = { key: nk, value: value == null ? null : String(value), ts: Date.now(), action };
-            console.log('[storage] Recording change for key:', nk, 'action:', action, 'value:', entry.value);
             _changeLog.set(nk, entry);
-            try { console.log('[storage] _changeLog size after record:', _changeLog.size); } catch (e) {}
-            // Keep changes in-memory only until commit; do NOT persist here.
-            // Persisting on every change caused unwanted writes and potential data
-            // loss when `saveAll()` was used. The `commitData()` path will persist
-            // the aggregate `_changeLog` when the app exits or explicitly requested.
+            // Keep changes in-memory only until commit
         } catch (e) { }
     }
 

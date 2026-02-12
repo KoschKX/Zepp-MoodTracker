@@ -15,9 +15,7 @@ export const saveMoodData = (dateKey = null) => {
 		if (all[y] && all[y][m]) {
 			const key = 'mood_' + dateKey;
 			const val = String(all[y][m][d]);
-			console.log('[PROBLEM] ', val);
 			if(val == 0 || !val || isNaN(Number(val)) ) {
-				console.log('[PROBLEM] ', dateKey);
 				easystorage.removeItem(key);
 				state.unsetMoodHistoryByDate(key);
 			}else{
