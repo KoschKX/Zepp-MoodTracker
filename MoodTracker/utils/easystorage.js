@@ -34,6 +34,8 @@ const json_mood = 'moodData.json';
         return k;
     }
 
+    function storageKey(k) { return normalizeKeyForStorageLocal(k); }
+
     function recordChange(key, value) {
         try {
             const nk = normalizeKeyForStorageLocal(key);
@@ -59,7 +61,7 @@ const json_mood = 'moodData.json';
         }
     }
 
-    export function commitData(){
+    export function commitData(moodData){
         if(globals.ASYNC_DATA){
             AsyncStorage.SaveAndQuit();
         }else{
@@ -71,7 +73,6 @@ const json_mood = 'moodData.json';
                 const toDelete = [];
                 for (const [k, ent] of _changeLog.entries()) {
                     try {
-                        // Use recorded value when present, otherwise consult in-memory state
                         let recordedVal = ent && ent.value !== undefined ? ent.value : null;
                         if (recordedVal == null) {
                             const dateKey = k.startsWith('mood_') ? k.slice(5) : k;
@@ -90,10 +91,10 @@ const json_mood = 'moodData.json';
                 if (easyStorage && typeof easyStorage.setKey === 'function') {
                     try {
                         for (const k of Object.keys(toSave)) {
-                            try { easyStorage.setKey(k, toSave[k]); } catch (e) { console.log('[storage] sync save error', k, e); }
+                            try { easyStorage.setKey(storageKey(k), toSave[k]); } catch (e) { console.log('[storage] sync save error', k, e); }
                         }
                         for (const k of toDelete) {
-                            try { easyStorage.removeKey(k); } catch (e) { console.log('[storage] sync delete error', k, e); }
+                            try { easyStorage.removeKey(storageKey(k)); } catch (e) { console.log('[storage] sync delete error', k, e); }
                         }
                         // rebuild aggregated mood_history synchronously
                         try {
@@ -138,7 +139,7 @@ const json_mood = 'moodData.json';
         if(globals.ASYNC_DATA){
             AsyncStorage.WriteJson(json_mood, key, value);
         }else{
-            try { easyStorage.setKey(key, value); } catch (e) {}
+            try { easyStorage.setKey(storageKey(key), value); } catch (e) {}
         }
     }
     
@@ -147,7 +148,7 @@ const json_mood = 'moodData.json';
         if(globals.ASYNC_DATA){
             AsyncStorage.WriteJson(json_mood, key, null);
         }else{
-            try { easyStorage.removeKey(key); } catch (e) {}
+            try { easyStorage.removeKey(storageKey(key)); } catch (e) {}
         }
     }
 
@@ -155,7 +156,7 @@ const json_mood = 'moodData.json';
         if(globals.ASYNC_DATA){
             return AsyncStorage.ReadJson(json_mood, key);
         }else{
-            return easyStorage.getKey(key);
+            return easyStorage.getKey(storageKey(key));
         }
     }
 
@@ -260,11 +261,11 @@ const json_mood = 'moodData.json';
                             }
                         } else {
                             if (action == 'save') {
-                                try { easyStorage.setKey(key, val); } catch (e) { if(log){ console.log('[storage] easyStorage setKey error', e); } }
+                                try { easyStorage.setKey(normalizeKeyForStorage(key), val); } catch (e) { if(log){ console.log('[storage] easyStorage setKey error', e); } }
                             }
                             if (action == 'delete') {
                                
-                                try { easyStorage.removeKey(key); } catch (e) { if(log){ console.log('[storage] easyStorage removeKey error', e); } }
+                                try { easyStorage.removeKey(normalizeKeyForStorage(key)); } catch (e) { if(log){ console.log('[storage] easyStorage removeKey error', e); } }
                             }
                         }
                     }

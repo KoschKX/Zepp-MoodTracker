@@ -33,7 +33,7 @@ Page({
     graph.drawGraph.debugDateText = debugDateText;
     debugDateText.addEventListener?.(event.CLICK_DOWN, () => { 
       state.setDebugDayOffset(0); 
-      graph.updateUIAfterDateChange(debugDateText, statusText, imgWidgets); 
+      try { require('../functions/header').updateHeader(debugDateText, statusText, graph.getGraphWindowMode()); } catch (e) { /* fallback */ graph.updateUIAfterDateChange(debugDateText, statusText, imgWidgets); }
     });
 
     // STATUS
@@ -69,7 +69,7 @@ Page({
     // NAV ARROWS
     const navigateDate = dir => {
       state.setDebugDayOffset(state.getDebugDayOffset() + dir);
-      graph.updateUIAfterDateChange(debugDateText, statusText, imgWidgets);
+      try { require('../functions/header').updateHeader(debugDateText, statusText, graph.getGraphWindowMode()); } catch (e) { /* fallback */ graph.updateUIAfterDateChange(debugDateText, statusText, imgWidgets); }
     };
     const leftArrow = createWidget(widget.TEXT, { text: '«', x: PX.x50, y: PX.x36, w: PX.x80, h: PX.x70, color: 0xff6600, text_size: PX.x78, align_h: align.CENTER_H, align_v: align.CENTER_V  });
           leftArrow.addEventListener?.(event.CLICK_DOWN, () => navigateDate(-1));

@@ -1,5 +1,5 @@
 import * as calc from './calc.js';
-import { storage } from '@zos/storage';
+import * as easystorage from '../utils/easystorage.js'
 
 // STATE 
 let _moodDataByDate = {};
@@ -20,6 +20,10 @@ let _storageWriteTimeout = null;
 let _lastDebugOffset = 0;
 
 let _graphWindowMode = 0;
+
+// Cache of loaded months to avoid repeated batch loads. Key = 'YYYY-MM'
+let _loadedMonths = new Map();
+const MAX_LOADED_MONTHS = 6;
 
 const _dateKeyCache = new Map();
 
@@ -151,7 +155,7 @@ export function handleToken(token){
 		setLastClearToken(nextToken);
 		// Avoid importing data.js here (circular dependency). Read snapshot directly.
 		try {
-			const snap = storage.getItem('mood_history') || '';
+			const snap = easystorage.getItem('mood_history') || '';
 			setLastMoodHistorySnapshot(snap);
 		} catch (e) {
 			setLastMoodHistorySnapshot('');
@@ -159,7 +163,7 @@ export function handleToken(token){
 	}
 }
 export function getClearedAtToken() {
-    try {  const v = storage.getItem('mood_history_cleared_at');  return v ? Number(v) : 0; } catch (e) { return 0; }
+    try {  const v = easystorage.getItem('mood_history_cleared_at');  return v ? Number(v) : 0; } catch (e) { return 0; }
 };
 
 
@@ -198,10 +202,59 @@ export const getMoodHistoryForDays = (numDays, isMonthMode = false) => {
 	const start = isMonthMode ? 0 : -Math.floor(numDays / 2);
 	setMoodHistoryCacheKey(cacheKey);
 	const _debugKeys = [];
+	// If we're in month mode, try to batch-load the month into memory first
+	/*
+	if (isMonthMode) {
+		try {
+			const view = getDebugDate();
+			const y = view.getFullYear();
+			const m = String(view.getMonth() + 1).padStart(2, '0');
+			const monthKey = `${y}-${m}`;
+			if (!_loadedMonths.has(monthKey)) {
+				const monthData = (typeof storage.loadMoodMonth === 'function') ? storage.loadMoodMonth(y, view.getMonth()) : {};
+				for (const k in monthData) {
+					try { setMoodHistoryByDate(k, monthData[k]); } catch (e) {}
+				}
+				_loadedMonths.set(monthKey, Date.now());
+				// Evict oldest if too many cached months
+				if (_loadedMonths.size > MAX_LOADED_MONTHS) {
+					let oldest = null, oldestTs = Infinity;
+					for (const [kk, ts] of _loadedMonths.entries()) { if (ts < oldestTs) { oldestTs = ts; oldest = kk; } }
+					if (oldest) {
+						_loadedMonths.delete(oldest);
+						// Also remove the month's per-day entries from in-memory _moodDataByDate to free memory
+						try {
+							const parts = oldest.split('-');
+							const oy = parts[0], om = parts[1];
+							if (_moodDataByDate?.[oy]?.[om]) {
+								delete _moodDataByDate[oy][om];
+								if (Object.keys(_moodDataByDate[oy]).length === 0) delete _moodDataByDate[oy];
+							}
+						} catch (e) {  }
+					}
+				}
+			}
+		} catch (e) { }
+	}
+	*/
 	const moodArr = Array.from({ length: numDays }, (_, i) => {
 		const d = new Date(base + (start + i) * getMsPerDay()), k = calc.formatDateKey(d);
 		_debugKeys.push(k);
 		let raw = getMoodHistoryByDate(k);
+		// If we don't have the day in memory, try loading it on demand from storage
+		if (raw === undefined || raw === null) {
+			try {
+				const stored = easystorage.getItem(k);
+				if (stored !== undefined && stored !== null) {
+					let parsed = stored;
+					if (typeof parsed === 'string' && parsed.trim().length) {
+						try { parsed = JSON.parse(parsed); } catch (e) { /* leave as-is */ }
+					}
+					setMoodHistoryByDate(k, parsed);
+					raw = parsed;
+				}
+			} catch (e) { /* ignore load errors */ }
+		}
 		// Normalize shapes: support { mood: X } objects, numeric strings, and plain numbers
 		let moodVal = null;
 		try {
@@ -236,7 +289,7 @@ export const setMoodState = (key, value) => {
 };
 export const getMoodHistorySnapshot = () => {
 	try {
-		return storage.getItem('mood_history') || '';
+		return easystorage.getItem('mood_history') || '';
 	} catch (e) {
 		return '';
 	}

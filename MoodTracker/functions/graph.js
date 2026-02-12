@@ -40,9 +40,24 @@ let _graphWindowMode = 0;
 export const getGraphWindowMode = () => _graphWindowMode;
 export const setGraphWindowMode = (mode) => { _graphWindowMode = mode; };
 
-export function drawGraph(skipDots = false) {
+export function drawGraph(skipDots = false, stagger) {
   if (drawGraph._isRendering) return;
   drawGraph._isRendering = true;
+  // Clear any previous stagger timers from earlier renders (support timeout and raf handles)
+  if (drawGraph._staggerTimer) {
+    try {
+      if (typeof drawGraph._staggerTimer === 'object' && drawGraph._staggerTimer.type === 'raf' && typeof cancelAnimationFrame !== 'undefined') cancelAnimationFrame(drawGraph._staggerTimer.id);
+      else clearTimeout(drawGraph._staggerTimer);
+    } catch (e) {}
+    drawGraph._staggerTimer = null;
+  }
+  if (drawGraph._staggerInterpTimer) {
+    try {
+      if (typeof drawGraph._staggerInterpTimer === 'object' && drawGraph._staggerInterpTimer.type === 'raf' && typeof cancelAnimationFrame !== 'undefined') cancelAnimationFrame(drawGraph._staggerInterpTimer.id);
+      else clearTimeout(drawGraph._staggerInterpTimer);
+    } catch (e) {}
+    drawGraph._staggerInterpTimer = null;
+  }
 
   const PX = ui.getPX();
   
@@ -57,6 +72,15 @@ export function drawGraph(skipDots = false) {
 
   // Dynamically set MAX_MOOD_DOTS to windowSize to avoid out-of-bounds errors
   setMaxMoodDots(windowSize);
+
+  // Defer creation of heavy month-mode pooled widgets to avoid blocking initial render.
+  if (getGraphWindowMode() === 1 && !drawGraph._monthPoolsInitialized && !drawGraph._monthPoolInitScheduled) {
+    drawGraph._monthPoolInitScheduled = setTimeout(() => {
+      drawGraph._monthPoolsInitialized = true;
+      drawGraph._monthPoolInitScheduled = null;
+      try { drawGraph(); } catch (e) {}
+    }, 200);
+  }
 
   // Pull mood data for the current window
   const moodData = state.getMoodHistoryForDays(windowSize, getGraphWindowMode() === 1);
@@ -230,7 +254,8 @@ export function drawGraph(skipDots = false) {
     }
   }
 
-  if (!skipDots && !drawGraph.centerLineDots && globals.SHOW_CENTER_LINE) {
+  // center line is only relevant for week mode; avoid creating when in month mode
+  if (!skipDots && !drawGraph.centerLineDots && globals.SHOW_CENTER_LINE && getGraphWindowMode() === 0) {
     drawGraph.centerLineDots = [];
     const centerX = graphLeft + graphWidth / 2 - 1, numDots = 9, dotSpacing = graphHeight / 8;
     for (let i = 0; i < numDots; i++) {
@@ -244,7 +269,8 @@ export function drawGraph(skipDots = false) {
     for (let i = 0; i < drawGraph.centerLineDots.length; i++) drawGraph.centerLineDots[i].setProperty?.(prop.MORE, { y: px((shouldShow ? graphTop + i * dotSpacing - 1 : -100) - 4) });
   }
   
-  if (!skipDots && !drawGraph.weekLineDots) {
+  // weekLineDots used for month layout; only create when month pools are initialized
+  if (!skipDots && !drawGraph.weekLineDots && (getGraphWindowMode() !== 1 || drawGraph._monthPoolsInitialized)) {
     drawGraph.weekLineDots = Array.from({ length: 5 }, () => {
       const lineDots = [];
       for (let i = 0; i < 9; i++) {
@@ -284,7 +310,7 @@ export function drawGraph(skipDots = false) {
     }
   }
 
-  if (!skipDots) {
+    if (!skipDots) {
     const createDot = (size, z) => { const dot = createWidget(widget.TEXT, { x: PX.x0, y: PX.neg100, w: PX.x16, h: PX.x16, color: 0x000000, text_size: size, align_h: align.CENTER_H, align_v: align.CENTER_V, text: '●' }); dot.setProperty?.(prop.MORE, { z }); return dot; };
     const pxDotSize = px(8);
     if (!drawGraph.dotPool) drawGraph.dotPool = [];
@@ -293,10 +319,16 @@ export function drawGraph(skipDots = false) {
     while (drawGraph.dotPool.length < dotsNeeded && drawGraph.dotPool.length < windowSize) {
       drawGraph.dotPool.push(createDot(pxDotSize, 100));
     }
-    if (globals.SHOW_INTERPOLATION_DOTS && !drawGraph.interpPool) drawGraph.interpPool = [];
+    // Interp pool: create only when needed; for month mode wait until month pools initialized
+    if (globals.SHOW_INTERPOLATION_DOTS && !drawGraph.interpPool && (getGraphWindowMode() !== 1 || drawGraph._monthPoolsInitialized)) drawGraph.interpPool = [];
     let dotPoolIdx = 0;
     let interpIdx = 0;
     const shouldHideDots = state.getIsNavigating() && ((getGraphWindowMode() === 0 && globals.HIDE_DOTS_DURING_NAV_WEEK) || (getGraphWindowMode() === 1 && globals.HIDE_DOTS_DURING_NAV_MONTH));
+
+    // Collect targets for potential staggered reveal
+    const dotTargets = [];
+    const interpTargets = [];
+
     for (let dayIdx = 0; dayIdx < windowSize; dayIdx++) {
       const mood = moodData[dayIdx].mood;
       if (typeof mood === 'number' && globals.moodValueMap[mood]) {
@@ -305,17 +337,16 @@ export function drawGraph(skipDots = false) {
         // Only update if changed (avoid JSON.stringify for perf)
         const prev = dot._prevProps || {};
         const newX = px(cx - 8), newY = px(cy - 8), newColor = moodObj.color;
+        let targetProps;
         if (shouldHideDots) {
-          if (prev.y !== PX.neg100) {
-            dot.setProperty(prop.MORE, { y: PX.neg100 });
-            dot._prevProps = { y: PX.neg100 };
-          }
+          targetProps = { y: PX.neg100 };
         } else {
-          if (prev.x !== newX || prev.y !== newY || prev.color !== newColor) {
-            dot.setProperty(prop.MORE, { x: newX, y: newY, color: newColor });
-            dot._prevProps = { x: newX, y: newY, color: newColor };
-          }
+          // Include dot in targets even if unchanged so it can be hidden
+          // and revealed in the stagger sequence. This ensures left-to-right
+          // timing remains consistent for cached dots.
+          targetProps = { x: newX, y: newY, color: newColor };
         }
+        if (targetProps) dotTargets.push({ dot, props: targetProps });
 
         // Interpolation dots
         if (globals.SHOW_INTERPOLATION_DOTS && state.getInterpolationEnabled() && !shouldHideDots && dayIdx < windowSize - 1) {
@@ -330,17 +361,16 @@ export function drawGraph(skipDots = false) {
             for (let i = 1; i <= numDots; i++, interpIdx++) {
               const t = globals.ADAPTIVE_INTERPOLATION_DOTS ? i / (numDots + 1) : i * 0.25;
               if (interpIdx >= drawGraph.interpPool.length) {
-                const d = createWidget(widget.TEXT, { x: 0, y: -100, w: PX.x12, h: PX.x12, color: 0x000000, text_size: PX.x10, align_h: align.CENTER_H, align_v: align.CENTER_V, text: '•' });
+                const d = createWidget(widget.TEXT, { x: 0, y: PX.neg100, w: PX.x12, h: PX.x12, color: 0x000000, text_size: PX.x10, align_h: align.CENTER_H, align_v: align.CENTER_V, text: '•' });
                 d.setProperty?.(prop.MORE, { z: 10 });
                 drawGraph.interpPool.push(d);
               }
               const interp = drawGraph.interpPool[interpIdx];
               const interpX = px(cx + deltaX * t - 6), interpY = px(cy + deltaY * t - 6), interpColor = ui.lerpColor(moodObj.color, nextObj.color, t);
               const prevInterp = interp._prevProps || {};
-              if (prevInterp.x !== interpX || prevInterp.y !== interpY || prevInterp.color !== interpColor) {
-                interp.setProperty(prop.MORE, { x: interpX, y: interpY, color: interpColor });
-                interp._prevProps = { x: interpX, y: interpY, color: interpColor };
-              }
+              // Always include interp targets so cached interpolation dots
+              // are also revealed in-order by the stagger animation.
+              interpTargets.push({ dot: interp, props: { x: interpX, y: interpY, color: interpColor } });
             }
           }
         }
@@ -361,13 +391,99 @@ export function drawGraph(skipDots = false) {
     for (let i = interpIdx; i < drawGraph.interpPool.length; i++) {
       const interp = drawGraph.interpPool[i];
       const prev = interp._prevProps || {};
-      if (prev.y !== px(-100)) {
-        interp.setProperty(prop.MORE, { y: px(-100) });
-        interp._prevProps = { y: px(-100) };
+      if (prev.y !== PX.neg100) {
+        interp.setProperty(prop.MORE, { y: PX.neg100 });
+        interp._prevProps = { y: PX.neg100 };
       }
     }
     drawGraph._prevInterpIdx = interpIdx;
+
+    // Helper to run reveal either staggered or immediately
+    const runReveal = (targets, enabled, ms, timerKey) => {
+      if (!targets || targets.length === 0) return;
+      // Filter out null entries
+      const filtered = targets.filter(t => t && t.dot && t.props);
+      if (filtered.length === 0) return;
+      if (!enabled) {
+        filtered.forEach(t => { t.dot.setProperty(prop.MORE, t.props); t.dot._prevProps = Object.assign({}, t.props); });
+        return;
+      }
+      // start hidden (ensure offscreen)
+      filtered.forEach(t => { const p = t.dot._prevProps || {}; if (p.y !== PX.neg100) { t.dot.setProperty(prop.MORE, { y: PX.neg100 }); t.dot._prevProps = { y: PX.neg100 }; } });
+      let i = 0;
+      const step = () => {
+        if (i >= filtered.length) { drawGraph[timerKey] = null; return; }
+        const t = filtered[i++];
+        t.dot.setProperty(prop.MORE, t.props);
+        t.dot._prevProps = Object.assign({}, t.props);
+        drawGraph[timerKey] = setTimeout(step, ms);
+      };
+      step();
+    };
+
+    // Reveal mood dots and interpolation dots in left-to-right order.
+    // If either stagger flag is enabled, run a combined stagger so order is consistent
+    const anyStagger = !!globals.ENABLE_STAGGER_DOT_REVEAL && (stagger === true);
+    // Allow callers to force an immediate reveal for the next draw
+    const instant = !!drawGraph._instantReveal;
+    if (instant) { try { drawGraph._instantReveal = false; } catch (e) {} }
+    const filteredDots = dotTargets.filter(t => t && t.dot && t.props).map(t => ({...t, type: 'dot'}));
+    const filteredInterps = interpTargets.filter(t => t && t.dot && t.props).map(t => ({...t, type: 'interp'}));
+    // Combine and sort by x (left-to-right). If equal x, show interpolation before main dot.
+    const combined = filteredDots.concat(filteredInterps).sort((a, b) => {
+      const ax = (a.props && typeof a.props.x === 'number') ? a.props.x : 0;
+      const bx = (b.props && typeof b.props.x === 'number') ? b.props.x : 0;
+      if (ax === bx) return (a.type === 'interp' && b.type === 'dot') ? -1 : (a.type === 'dot' && b.type === 'interp') ? 1 : 0;
+      return ax - bx;
+    });
+    if (!anyStagger || instant || (drawGraph._noStaggerUntil && Date.now() < drawGraph._noStaggerUntil)) {
+      // Immediate apply all in order
+      combined.forEach(t => { t.dot.setProperty(prop.MORE, t.props); t.dot._prevProps = Object.assign({}, t.props); });
+    } else {
+      // Compute interval from pixels/ms so stagger speed is independent of FPS.
+      // Use the PX-scaled graph width for consistent pixel units.
+      const refMs = globals.STAGGER_DOT_REVEAL_MS || 33;
+      const graphWidthPx = PX.x272 || px(graphWidth);
+      const xs = combined.map(c => (c.props && typeof c.props.x === 'number') ? c.props.x : 0).filter(x => x > 0);
+      const avgDeltaX = xs.length > 1 ? xs.slice(1).map((v, i) => Math.abs(v - xs[i])).reduce((s, v) => s + v, 0) / (xs.length - 1) : (graphWidthPx / Math.max(1, windowSize - 1));
+      const referenceDeltaX = graphWidthPx / Math.max(1, (Math.min(windowSize, 7) - 1) || 6);
+      const pixelsPerMs = referenceDeltaX / refMs;
+      let baseMs = Math.max(1, Math.round((avgDeltaX || referenceDeltaX) / pixelsPerMs));
+      baseMs = Math.min(Math.max(baseMs, 1), 500);
+      // ensure starting hidden
+      combined.forEach(t => { const p = t.dot._prevProps || {}; if (p.y !== PX.neg100) { t.dot.setProperty(prop.MORE, { y: PX.neg100 }); t.dot._prevProps = { y: PX.neg100 }; } });
+      try { drawGraph._isStaggering = true; } catch (e) {}
+      try { drawGraph._noStaggerUntil = Date.now() + combined.length * baseMs + 80; } catch (e) {}
+      const startAt = Date.now();
+      const schedule = combined.map((_, idx) => startAt + idx * baseMs);
+      let ciIdx = 0;
+      const tickCombined = () => {
+        const nowTick = Date.now();
+        while (ciIdx < combined.length && schedule[ciIdx] <= nowTick) {
+          const t = combined[ciIdx++];
+          t.dot.setProperty(prop.MORE, t.props);
+          t.dot._prevProps = Object.assign({}, t.props);
+        }
+        if (ciIdx >= combined.length) { drawGraph._staggerTimer = null; try { drawGraph._isStaggering = false; } catch (e) {} ; return; }
+        if (typeof requestAnimationFrame !== 'undefined') {
+          const id = requestAnimationFrame(tickCombined);
+          drawGraph._staggerTimer = { type: 'raf', id };
+        } else {
+          const id = setTimeout(tickCombined, Math.min(50, baseMs));
+          drawGraph._staggerTimer = id;
+        }
+      };
+      // start the tick loop
+      if (typeof requestAnimationFrame !== 'undefined') {
+        const id = requestAnimationFrame(tickCombined);
+        drawGraph._staggerTimer = { type: 'raf', id };
+      } else {
+        const id = setTimeout(tickCombined, Math.min(50, baseMs));
+        drawGraph._staggerTimer = id;
+      }
+    }
   }
+
 
   // CORRECT BOTTOM LABELS
   let labelIndices;
@@ -397,9 +513,17 @@ export function drawGraph(skipDots = false) {
   }
   if (labelsChanged || !drawGraph._labelsInitialized) {
     const pxXAxisY = px(xAxisY);
+    // Defer creating a large number of x-axis label widgets when entering month mode
+    const deferLabels = getGraphWindowMode() === 1 && !drawGraph._monthPoolsInitialized;
     for (let i = 0; i < 31; i++) {
       if (i < labelCount) {
-        if (!drawGraph.xAxisLabelWidgets[i]) drawGraph.xAxisLabelWidgets[i] = createWidget(widget.TEXT, { x: PX.x0, y: pxXAxisY, w: PX.x30, h: PX.x20, color: 0x888888, text_size: PX.x14, align_h: align.CENTER_H, text: '' });
+        if (!drawGraph.xAxisLabelWidgets[i]) {
+          if (deferLabels) {
+            // leave uncreated for now; scheduled month pool init will re-render and create them
+          } else {
+            drawGraph.xAxisLabelWidgets[i] = createWidget(widget.TEXT, { x: PX.x0, y: pxXAxisY, w: PX.x30, h: PX.x20, color: 0x888888, text_size: PX.x14, align_h: align.CENTER_H, text: '' });
+          }
+        }
         const idx = labelIndices[i];
         let dayNum, isToday;
         if (getGraphWindowMode() === 1) {
@@ -412,10 +536,12 @@ export function drawGraph(skipDots = false) {
         const cx = graphLeft + idx * stripeWidth + halfStripe;
         const newX = px(cx - 15), newY = isToday ? px(xAxisY - 3) : pxXAxisY, newText = String(dayNum), newColor = isToday ? (globals.SHOW_TODAY_ARROW ? 0x000000 : 0xffffff) : 0x888888, newSize = isToday ? PX.x16 : PX.x14;
         const label = drawGraph.xAxisLabelWidgets[i];
-        const prev = label._prevProps || {};
-        if (prev.x !== newX || prev.y !== newY || prev.text !== newText || prev.color !== newColor || prev.text_size !== newSize) {
-          label.setProperty(prop.MORE, { x: newX, y: newY, text: newText, color: newColor, text_size: newSize });
-          label._prevProps = { x: newX, y: newY, text: newText, color: newColor, text_size: newSize };
+        if (label) {
+          const prev = label._prevProps || {};
+          if (prev.x !== newX || prev.y !== newY || prev.text !== newText || prev.color !== newColor || prev.text_size !== newSize) {
+            label.setProperty(prop.MORE, { x: newX, y: newY, text: newText, color: newColor, text_size: newSize });
+            label._prevProps = { x: newX, y: newY, text: newText, color: newColor, text_size: newSize };
+          }
         }
       } else if (i < prevLabelCount && drawGraph.xAxisLabelWidgets[i]) {
         const label = drawGraph.xAxisLabelWidgets[i];
@@ -465,6 +591,16 @@ export function drawGraph(skipDots = false) {
   drawGraph._isRendering = false;
 }
 
+// Public helper: request the next draw apply instantly (no stagger)
+export function forceInstantRevealOnce() {
+  try {
+    drawGraph._instantReveal = true;
+    // suppress any stagger for a short window so subsequent draws don't immediately re-stagger
+    drawGraph._noStaggerUntil = Date.now() + 400;
+  } catch (e) {}
+}
+
+
 export const refreshMoodDataAndUI = () => {
     if (storageWriteTimeout) {
         clearTimeout(storageWriteTimeout);
@@ -480,7 +616,7 @@ export const refreshMoodDataAndUI = () => {
     if (_loadingText) _loadingText.setProperty?.(prop.MORE, { y: px(226) });
     if (drawGraph) drawGraph(true);
     if (drawGraph && drawGraph.debugDateText && drawGraph.statusText && imgWidgets) {
-        updateUIAfterDateChange(drawGraph.debugDateText, drawGraph.statusText, imgWidgets);
+        //updateUIAfterDateChange(drawGraph.debugDateText, drawGraph.statusText, imgWidgets);
     }
     setTimeout(() => {
         try {
