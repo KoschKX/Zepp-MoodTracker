@@ -120,7 +120,7 @@ Page({
     header.updateHeader(debugDateText, statusText, graph.getGraphWindowMode());
     // place legend just below the smileys immediately so it doesn't wait for RAF
     try {
-      const legendTop = 325;
+      const legendTop = 330;
       legend.ensureLegend(graph.drawGraph, PX, legendTop);
       legend.refreshLegendCounts(graph.drawGraph);
     } catch (e) {}
