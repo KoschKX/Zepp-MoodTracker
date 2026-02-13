@@ -4,6 +4,16 @@ import { px } from '@zos/utils';
 import * as globals from '../globals';
 import * as state from '../functions/state';
 import * as ui from '../functions/ui';
+
+// fast color lerp helper to avoid calling ui.lerpColor in hot loops
+function lerpColorFast(c1, c2, t) {
+  const r1 = (c1 >> 16) & 0xff, g1 = (c1 >> 8) & 0xff, b1 = c1 & 0xff;
+  const r2 = (c2 >> 16) & 0xff, g2 = (c2 >> 8) & 0xff, b2 = c2 & 0xff;
+  const rt = (r1 * (1 - t) + r2 * t + 0.5) | 0;
+  const gt = (g1 * (1 - t) + g2 * t + 0.5) | 0;
+  const bt = (b1 * (1 - t) + b2 * t + 0.5) | 0;
+  return (rt << 16) | (gt << 8) | bt;
+}
 import * as calc from '../functions/calc';
 import * as data from '../functions/data';
 
@@ -467,7 +477,7 @@ export function drawGraph(skipDots = false, stagger = false) {
                 drawGraph.interpPool.push(d);
               }
               const interp = drawGraph.interpPool[interpIdx];
-              const interpX = px(cx + deltaX * t - 6), interpY = px(cy + deltaY * t - 6), interpColor = ui.lerpColor(moodObj.color, nextObj.color, t);
+              const interpX = px(cx + deltaX * t - 6), interpY = px(cy + deltaY * t - 6), interpColor = lerpColorFast(moodObj.color, nextObj.color, t);
               const prevInterp = interp._prevProps || {};
               // Always include interp targets so cached interpolation dots
               // are also revealed in-order by the stagger animation.
@@ -489,12 +499,14 @@ export function drawGraph(skipDots = false, stagger = false) {
     }
     
     // Hide unused interpolation dots
-    for (let i = interpIdx; i < drawGraph.interpPool.length; i++) {
-      const interp = drawGraph.interpPool[i];
-      const prev = interp._prevProps || {};
-      if (prev.y !== PX.neg100) {
-        interp.setProperty(prop.MORE, { y: PX.neg100 });
-        interp._prevProps = { y: PX.neg100 };
+    if (drawGraph.interpPool) {
+      for (let i = interpIdx; i < drawGraph.interpPool.length; i++) {
+        const interp = drawGraph.interpPool[i];
+        const prev = interp._prevProps || {};
+        if (prev.y !== PX.neg100) {
+          interp.setProperty(prop.MORE, { y: PX.neg100 });
+          interp._prevProps = { y: PX.neg100 };
+        }
       }
     }
     drawGraph._prevInterpIdx = interpIdx;

@@ -7,6 +7,16 @@ import * as ui from './ui';
 import * as calc from './calc';
 import * as data from './data';
 
+// fast color lerp without allocations
+function lerpColorFast(c1, c2, t) {
+  const r1 = (c1 >> 16) & 0xff, g1 = (c1 >> 8) & 0xff, b1 = c1 & 0xff;
+  const r2 = (c2 >> 16) & 0xff, g2 = (c2 >> 8) & 0xff, b2 = c2 & 0xff;
+  const rt = (r1 * (1 - t) + r2 * t + 0.5) | 0;
+  const gt = (g1 * (1 - t) + g2 * t + 0.5) | 0;
+  const bt = (b1 * (1 - t) + b2 * t + 0.5) | 0;
+  return (rt << 16) | (gt << 8) | bt;
+}
+
 // TAP AREA
 let TAPAREA_CALLBACK = null;
 export function getTapAreaCallback() {
@@ -61,6 +71,9 @@ export function drawGraph(skipDots = false, stagger) {
   }
 
   const PX = ui.getPX();
+  // small cache for px() results to avoid repeated conversions on same numeric values
+  const _pc = drawGraph._pxCache || (drawGraph._pxCache = Object.create(null));
+  const pxC = (v) => { const k = String(v); let r = _pc[k]; if (typeof r === 'undefined') { r = px(v); _pc[k] = r; } return r; };
   
   let { graphGroup, legendGroup, backgroundWidget, gridGroup, tapArea, xAxisGroup } = drawGraph;
   const graphTop = 210, graphHeight = 80, graphLeft = 76, graphWidth = 272, moodRows = globals.moods.length;
@@ -112,6 +125,21 @@ export function drawGraph(skipDots = false, stagger) {
     drawGraph._monthPoolInitScheduled = setTimeout(() => {
       drawGraph._monthPoolsInitialized = true;
       drawGraph._monthPoolInitScheduled = null;
+      // Precreate x-axis labels and interp pool to avoid first-time creation spikes
+      try {
+        if (!drawGraph.xAxisLabelWidgets) drawGraph.xAxisLabelWidgets = [];
+        for (let i = 0; i < 31; i++) {
+          if (!drawGraph.xAxisLabelWidgets[i]) drawGraph.xAxisLabelWidgets[i] = createWidget(widget.TEXT, { x: PX.x0, y: PX.neg100, w: PX.x30, h: PX.x20, color: 0x888888, text_size: PX.x14, align_h: align.CENTER_H, text: '' });
+        }
+        // Precreate interpolation pool for worst-case month window
+        if (!drawGraph.interpPool) drawGraph.interpPool = [];
+        const maxInterp = Math.max(0, (windowSize - 1) * 3);
+        for (let i = drawGraph.interpPool.length; i < maxInterp; i++) {
+          const d = createWidget(widget.TEXT, { x: 0, y: PX.neg100, w: PX.x12, h: PX.x12, color: 0x000000, text_size: PX.x10, align_h: align.CENTER_H, align_v: align.CENTER_V, text: '•' });
+          d.setProperty?.(prop.MORE, { z: 10 });
+          drawGraph.interpPool.push(d);
+        }
+      } catch (e) {}
       try { drawGraph(); } catch (e) {}
     }, 0);
   }
@@ -440,7 +468,7 @@ export function drawGraph(skipDots = false, stagger) {
         
         // Only update if changed (avoid JSON.stringify for perf)
         const prev = dot._prevProps || {};
-        const newX = px(cx - 8), newY = px(cy - 8), newColor = moodObj.color;
+        const newX = pxC(cx - 8), newY = pxC(cy - 8), newColor = moodObj.color;
         let targetProps;
         if (shouldHideDots) {
           targetProps = drawGraph._getPY(PX.neg100);
@@ -470,7 +498,7 @@ export function drawGraph(skipDots = false, stagger) {
                 drawGraph.interpPool.push(d);
               }
               const interp = drawGraph.interpPool[interpIdx];
-              const interpX = px(cx + deltaX * t - 6), interpY = px(cy + deltaY * t - 6), interpColor = ui.lerpColor(moodObj.color, nextObj.color, t);
+              const interpX = pxC(cx + deltaX * t - 6), interpY = pxC(cy + deltaY * t - 6), interpColor = lerpColorFast(moodObj.color, nextObj.color, t);
               const prevInterp = interp._prevProps || {};
               // Always include interp targets so cached interpolation dots
               // are also revealed in-order by the stagger animation.
@@ -496,13 +524,15 @@ export function drawGraph(skipDots = false, stagger) {
     }
     
     // Hide unused interpolation dots
-    for (let i = interpIdx; i < drawGraph.interpPool.length; i++) {
-      const interp = drawGraph.interpPool[i];
-      const prev = interp._prevProps || {};
-      if (prev.y !== PX.neg100) {
-        interp.setProperty(prop.MORE, drawGraph._getPY(PX.neg100));
-        if (!interp._prevProps) interp._prevProps = {};
-        interp._prevProps.y = PX.neg100;
+    if (drawGraph.interpPool) {
+      for (let i = interpIdx; i < drawGraph.interpPool.length; i++) {
+        const interp = drawGraph.interpPool[i];
+        const prev = interp._prevProps || {};
+        if (prev.y !== PX.neg100) {
+          interp.setProperty(prop.MORE, drawGraph._getPY(PX.neg100));
+          if (!interp._prevProps) interp._prevProps = {};
+          interp._prevProps.y = PX.neg100;
+        }
       }
     }
     drawGraph._prevInterpIdx = interpIdx;
