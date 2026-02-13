@@ -266,8 +266,9 @@ export function drawGraph(skipDots = false, stagger = false) {
           if (globals.ADAPTIVE_INTERPOLATION_DOTS) {
             const cy = cyMap[mood], cx = graphLeft + dayIdx * stripeWidth + halfStripe;
             const nextCy = cyMap[nextMood], nextCx = graphLeft + (dayIdx + 1) * stripeWidth + halfStripe;
-            const distance = Math.sqrt((nextCx - cx) ** 2 + (nextCy - cy) ** 2);
-            numDots = distance > 60 ? 3 : distance > 35 ? 2 : distance > 10 ? 1 : 0;
+            const dx = nextCx - cx, dy = nextCy - cy;
+            const sd = dx * dx + dy * dy;
+            numDots = sd > 3600 ? 3 : sd > 1225 ? 2 : sd > 100 ? 1 : 0;
           }
           for (let i = 1; i <= numDots; i++, interpIdx++) {
             const interp = drawGraph.interpPool[interpIdx];
@@ -455,8 +456,8 @@ export function drawGraph(skipDots = false, stagger = false) {
             const nextObj = globals.moodValueMap[nextMood], nextCy = cyMap[nextMood], nextCx = graphLeft + (dayIdx + 1) * stripeWidth + halfStripe, deltaX = nextCx - cx, deltaY = nextCy - cy;
             let numDots = 3;
             if (globals.ADAPTIVE_INTERPOLATION_DOTS) {
-              const distance = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
-              numDots = distance > 60 ? 3 : distance > 35 ? 2 : distance > 10 ? 1 : 0;
+              const sd = deltaX * deltaX + deltaY * deltaY;
+              numDots = sd > 3600 ? 3 : sd > 1225 ? 2 : sd > 100 ? 1 : 0;
             }
             for (let i = 1; i <= numDots; i++, interpIdx++) {
               const t = globals.ADAPTIVE_INTERPOLATION_DOTS ? i / (numDots + 1) : i * 0.25;
@@ -832,6 +833,8 @@ export const updateUIAfterDateChange = (debugDateText, statusText, imgWidgets,) 
     state.setIsNavigating(true);
     if (globals.SHOW_LOADING_INDICATOR && getGraphWindowMode() === 1 && _loadingText) _loadingText.setProperty?.(prop.MORE, { y: px(226) });
     if ((getGraphWindowMode() === 0 && globals.HIDE_DOTS_DURING_NAV_WEEK) || (getGraphWindowMode() === 1 && globals.HIDE_DOTS_DURING_NAV_MONTH)) { state.setCachedDebugDate(null); state.setMoodHistoryCache(null); drawGraph(); }
+    // Provide immediate visual feedback for explicit nav (avoid perceived delay)
+    try { drawGraph(); updateMoodUI(); } catch (e) {}
     if (_navDebounceTimer) clearTimeout(_navDebounceTimer);
     state.setNavDebounceTimer( 
       setTimeout(() => { state.setIsNavigating(false); _loadingText?.setProperty?.(prop.MORE, { y: px(-100) }); state.setCachedDebugDate(null); drawGraph(); updateMoodUI(); state.setNavDebounceTimer(null); }, globals.FRAME_TIME * globals.DEBOUNCE_MULTIPLIER) 

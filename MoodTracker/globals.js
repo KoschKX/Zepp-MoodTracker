@@ -5,13 +5,14 @@
 export const DEBUG_MODE = false;
 
 // PERFORMANCE
-export const TARGET_FPS = 24;
+export const TARGET_FPS = 15;
 export const FRAME_TIME = Math.floor(1000 / TARGET_FPS);
 export const INSTANT_NAV = true;
 export const VERTICAL_GRAPH_DOT_SIZE = 10;
 export const ULTRA_LIGHT_NAV = true;
 export const THROTTLE_DATE_UPDATES = true;
 export const SKIP_UI_UPDATES_DURING_NAV = true;
+export const DEBOUNCE_MULTIPLIER = 1;
 
 
 // GRAPH
