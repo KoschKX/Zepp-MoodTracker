@@ -147,6 +147,7 @@ Page({
       try {
         _loadingText = createWidget(widget.TEXT, { text: globals.LOADING_TEXT, x: px(182), y: px(226), w: px(60), h: px(30), color: 0x888888, text_size: px(24), align_h: align.CENTER_H, align_v: align.CENTER_V });
         try { state.registerLoadingWidget(_loadingText); } catch (e) {}
+        smileys.updateSmileysAlpha(imgWidgets);
       } catch (e) {}
     });
 

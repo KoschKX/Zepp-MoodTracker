@@ -13,8 +13,10 @@ import * as ui from '../functions/ui';
 // Create and return the array of smiley image widgets.
 export function createSmileys(PX, debugDateText, statusText) {
   const todayMood = data.getTodayMood();
+  console.log('[smileys] createSmileys todayMood=', todayMood);
   const imgWidgets = globals.moods.map((mood, i) => {
     const img = createWidget(widget.IMG, { x: px(PX.x45 + i * PX.x68), y: PX.x120, w: PX.x64, h: PX.x64, src: mood.img, alpha: todayMood === mood.value ? 255 : 180 });
+    console.log(`[smileys] created widget index=${i} mood=${mood.value} alpha=${todayMood === mood.value ? 255 : 180}`);
     img.addEventListener?.(event.CLICK_DOWN, () => {
       const dateKey = calc.formatDateKey(state.getDebugDate());
       const currentMood = state.getMoodHistoryByDate(dateKey);
@@ -43,9 +45,11 @@ export function createSmileys(PX, debugDateText, statusText) {
 }
 
 export function updateSmileysAlpha(imgWidgets) {
+  if( !imgWidgets || !imgWidgets.length) { return; }
   // If global set to defer updates until debounce, skip while navigating
   try { if (globals.DEFER_UPDATE_UNTIL_DEBOUNCE && state.getIsNavigating()) return; } catch (e) {}
   const todayMood = data.getTodayMood();
+  console.log('[smileys] updateSmileysAlpha todayMood=', todayMood, 'imgWidgets.length=', imgWidgets?.length);
   imgWidgets.forEach((w, j) => w.setProperty?.(prop.MORE, { alpha: todayMood === globals.moods[j].value ? 255 : 180 }));
 }
 
