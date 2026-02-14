@@ -61,7 +61,7 @@ Page({
     // NAV ARROWS
     const navigateDate = dir => {
       // If a nav debounce timer is already pending, ignore additional taps to avoid queueing
-      if(globals.DEFER_UPDATE_UNTIL_DEBOUNCE){
+      if(globals.DEFER_UPDATE_UNTIL_DEBOUNCE && globals.HIDE_DOTS_DURING_NAV_WEEK || graph.getGraphWindowMode() === 1){
         state.showLoadingImmediate();
       }
 
@@ -77,7 +77,7 @@ Page({
             setTimeout(() => { try { storage.loadMoodData(newDay, newDay); } catch (e) {} }, 0);
             try { header.updateHeader(debugDateText, statusText, graph.getGraphWindowMode()); } catch (e) {}
             try { state.setIsNavigating(true); } catch (e) {}
-            try { graph.hideAllDotsImmediate(); } catch (e) {}
+            try { if (globals.HIDE_DOTS_DURING_NAV_WEEK) { graph.hideAllDotsImmediate(); } } catch (e) {}
             // Defer graph
             try { if (state.getNavDebounceTimer()) { clearTimeout(state.getNavDebounceTimer()); state.setNavDebounceTimer(null); } } catch (e) {}
             try { state.setNavDebounceTimer(setTimeout(() => { 
@@ -102,8 +102,8 @@ Page({
           try { header.updateHeader(debugDateText, statusText, graph.getGraphWindowMode()); } catch (e) {}
           // Mark navigating so drawGraph can avoid creating heavy widgets during this short nav period
           try { state.setIsNavigating(true); } catch (e) {}
-          // Hide any visible dots immediately to avoid UI jank while debounce is active
-          if(globals.DEFER_UPDATE_UNTIL_DEBOUNCE || graph.getGraphWindowMode() == 1){
+          // Hide any visible dots immediately only when configured for month-mode navigation
+          if (globals.HIDE_DOTS_DURING_NAV_MONTH) {
             try { graph.hideAllDotsImmediate(); } catch (e) {}
           }
           // Defer graph redraw entirely until nav debounce completes to avoid blocking UI

@@ -315,8 +315,8 @@ export function drawGraph(skipDots = false, stagger = false) {
 
   if (!drawGraph.gridWidgets) {
     drawGraph.gridWidgets = [];
-    // Respect global setting to defer creating grid widgets during navigation debounce
-    const allowGrid = globals.SHOW_GRID_DOTS && !(globals.DEFER_UPDATE_UNTIL_DEBOUNCE && state.getIsNavigating());
+    // Grid visibility should depend on explicit HIDE_DOTS_* flags during navigation.
+    const allowGrid = globals.SHOW_GRID_DOTS && !(state.getIsNavigating() && ((getGraphWindowMode() === 0 && globals.HIDE_DOTS_DURING_NAV_WEEK) || (getGraphWindowMode() === 1 && globals.HIDE_DOTS_DURING_NAV_MONTH)));
     if (allowGrid) for (let i = 0; i < globals.moods.length; ++i) {
       const y = graphTop + Math.round((globals.moods.length - globals.moods[i].value) * graphHeight / (moodRows - 1)), gridDot = createWidget(widget.TEXT, { text: '●', x: gpx.leftMinus26, y: px(y - 10), w: PX.x20, h: PX.x20, color: globals.moods[i].color, text_size: PX.x12, align_h: align.CENTER_H, align_v: align.CENTER_V });
       gridDot.setProperty?.(prop.MORE, { z: 1 });
