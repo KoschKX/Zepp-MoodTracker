@@ -1,5 +1,7 @@
 import * as calc from './calc.js';
 import * as easystorage from '../utils/easystorage.js'
+import { prop } from '@zos/ui';
+import { px } from '@zos/utils';
 
 // STATE 
 let _moodDataByDate = {};
@@ -10,10 +12,10 @@ let _cachedDebugOffset = 0;
 let _navDebounceTimer = null;
 let _dateUpdateThrottle = null;
 let _prevDisplayedMood = null;
+let _loadingText = null;
 let _prevDateStr = '';
 let _graphNeedsRedraw = false;
 let _isNavigating = false;
-let _loadingText = null;
 let _lastClearToken = 0;
 let _lastMoodHistorySnapshot = '';
 let _storageWriteTimeout = null;
@@ -21,14 +23,44 @@ let _lastDebugOffset = 0;
 
 let _graphWindowMode = 0;
 
-// Cache of loaded months to avoid repeated batch loads. Key = 'YYYY-MM'
+// Loading widget management (register from pages that create the widget)
+let _loadingWidget = null;
+let _loadingHideTimer = null;
+let _pendingShow = false;
+
+export function registerLoadingWidget(w) {
+	_loadingWidget = w;
+	try {
+		if (_loadingWidget && _loadingWidget.setProperty) {
+			_loadingWidget.setProperty?.(prop.MORE, { y: px(-100), z: 10000, alpha: 255 });
+		}
+		if (_pendingShow) {
+			try { _loadingWidget.setProperty?.(prop.MORE, { y: px(226), z: 10000, alpha: 255 }); } catch (e) {}
+			_pendingShow = false;
+		}
+	} catch (e) {}
+}
+export function showLoadingImmediate() {
+	try {
+		if (_loadingWidget && _loadingWidget.setProperty) {
+			_loadingWidget.setProperty?.(prop.MORE, { y: px(226), z: 10000, alpha: 255 });
+		} else {
+			_pendingShow = true;
+		}
+	} catch (e) {}
+}
+export function hideLoadingSoon(delay = 300) {
+	try {
+		if (_loadingHideTimer) clearTimeout(_loadingHideTimer);
+		_loadingHideTimer = setTimeout(() => {
+			try { if (_loadingWidget && _loadingWidget.setProperty) _loadingWidget.setProperty?.(prop.MORE, { y: px(-100) }); } catch (e) {}
+		}, delay);
+	} catch (e) {}
+}
+
 let _loadedMonths = new Map();
 const MAX_LOADED_MONTHS = 6;
-
 const _dateKeyCache = new Map();
-
-
-// Declare missing local state
 let lastDebugOffset = 0;
 
 // --- GETTERS & SETTERS ---

@@ -5,7 +5,7 @@
 export const DEBUG_MODE = false;
 
 // PERFORMANCE
-export const TARGET_FPS = 15;
+export const TARGET_FPS = 20;
 export const FRAME_TIME = Math.floor(1000 / TARGET_FPS);
 export const INSTANT_NAV = true;
 export const VERTICAL_GRAPH_DOT_SIZE = 10;
@@ -13,7 +13,7 @@ export const ULTRA_LIGHT_NAV = true;
 export const THROTTLE_DATE_UPDATES = true;
 export const SKIP_UI_UPDATES_DURING_NAV = true;
 export const DEBOUNCE_MULTIPLIER = 1;
-
+export const DEFER_UPDATE_UNTIL_DEBOUNCE = true;
 
 // GRAPH
 export const SHOW_LOADING_INDICATOR = true;
@@ -29,6 +29,7 @@ export const VERTICAL_GRAPH_DOT_GLYPH = '•'; // '•' '┃' '|' '+' ':' '*' '�
 export const SHOW_TODAY_ARROW = false;
 export const TODAY_ARROW_COLOR = 0xffffff;
 export const SHOW_GRID_DOTS = false;
+
 export const ATTACH_DOT_TAP_EVENTS = true;
 export const HIDE_DOTS_DURING_NAV_WEEK = false;
 export const HIDE_DOTS_DURING_NAV_MONTH = true;

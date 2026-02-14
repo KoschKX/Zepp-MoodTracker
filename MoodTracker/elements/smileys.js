@@ -43,6 +43,8 @@ export function createSmileys(PX, debugDateText, statusText) {
 }
 
 export function updateSmileysAlpha(imgWidgets) {
+  // If global set to defer updates until debounce, skip while navigating
+  try { if (globals.DEFER_UPDATE_UNTIL_DEBOUNCE && state.getIsNavigating()) return; } catch (e) {}
   const todayMood = data.getTodayMood();
   imgWidgets.forEach((w, j) => w.setProperty?.(prop.MORE, { alpha: todayMood === globals.moods[j].value ? 255 : 180 }));
 }

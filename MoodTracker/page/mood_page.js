@@ -33,6 +33,10 @@ Page({
   },
   build() {
     const PX = ui.getPX();
+    let _loadingText = null;
+    
+  // Enable drawGraph internal perf timing for investigation
+  try { graph.drawGraph._perfEnabled = true; } catch (e) {}
     
     // STATUS
     const todayMood = data.getTodayMood();
@@ -56,6 +60,12 @@ Page({
 
     // NAV ARROWS
     const navigateDate = dir => {
+      // If a nav debounce timer is already pending, ignore additional taps to avoid queueing
+      if(globals.DEFER_UPDATE_UNTIL_DEBOUNCE){
+        state.showLoadingImmediate();
+      }
+
+      try { if (state.getNavDebounceTimer()) return; } catch (e) {}
       if (graph.getGraphWindowMode() === 0) {
           state.setDebugDayOffset(state.getDebugDayOffset() + dir);
           // Prefetch the new day that enters the 7-day window (center ±3)
@@ -64,10 +74,17 @@ Page({
             const msPerDayLocal = data.getMsPerDay();
             const newDay = new Date(viewAfter.getTime() + (dir > 0 ? 3 : -3) * msPerDayLocal);
             newDay.setHours(0,0,0,0);
-            storage.loadMoodData(newDay, newDay);
-            graph.drawGraph(false, false);
-            header.updateHeader(debugDateText, statusText, graph.getGraphWindowMode());
-          } catch (e) { /* ignore prefetch errors */ }
+            setTimeout(() => { try { storage.loadMoodData(newDay, newDay); } catch (e) {} }, 0);
+            try { header.updateHeader(debugDateText, statusText, graph.getGraphWindowMode()); } catch (e) {}
+            try { state.setIsNavigating(true); } catch (e) {}
+            try { graph.hideAllDotsImmediate(); } catch (e) {}
+            // Defer graph
+            try { if (state.getNavDebounceTimer()) { clearTimeout(state.getNavDebounceTimer()); state.setNavDebounceTimer(null); } } catch (e) {}
+            try { state.setNavDebounceTimer(setTimeout(() => { 
+              try { console.time && console.time('graphDeferred'); state.setIsNavigating(false); try { state.hideLoadingSoon(0); } catch (e) {} graph.drawGraph(false, true); header.updateHeader(debugDateText, statusText, graph.getGraphWindowMode()); console.time; } catch (e) {} finally { try { state.setNavDebounceTimer(null); } catch (e) {} } }, globals.FRAME_TIME * globals.DEBOUNCE_MULTIPLIER)); 
+            } catch (e) {}
+          } catch (e) {}
+          
       } else {
           const curr = state.getDebugDate();
           let tgtM = curr.getMonth() + dir;
@@ -81,8 +98,19 @@ Page({
           now.setHours(0, 0, 0, 0);
           const offset = Math.round((tgt.getTime() - now.getTime()) / data.getMsPerDay());
           state.setDebugDayOffset(offset);
-          graph.drawGraph(false, true);
-          header.updateHeader(debugDateText, statusText, graph.getGraphWindowMode());
+          // Immediate header update for instant feedback
+          try { header.updateHeader(debugDateText, statusText, graph.getGraphWindowMode()); } catch (e) {}
+          // Mark navigating so drawGraph can avoid creating heavy widgets during this short nav period
+          try { state.setIsNavigating(true); } catch (e) {}
+          // Hide any visible dots immediately to avoid UI jank while debounce is active
+          if(globals.DEFER_UPDATE_UNTIL_DEBOUNCE || graph.getGraphWindowMode() == 1){
+            try { graph.hideAllDotsImmediate(); } catch (e) {}
+          }
+          // Defer graph redraw entirely until nav debounce completes to avoid blocking UI
+          try { if (state.getNavDebounceTimer()) { clearTimeout(state.getNavDebounceTimer()); state.setNavDebounceTimer(null); } } catch (e) {}
+          try { state.setNavDebounceTimer(setTimeout(() => { 
+            try { console.time && console.time('graphDeferred'); state.setIsNavigating(false); try { state.hideLoadingSoon(0); } catch (e) {} graph.drawGraph(false, true); header.updateHeader(debugDateText, statusText, graph.getGraphWindowMode()); console.time && console.timeEnd('graphDeferred'); } catch (e) {} finally { try { state.setNavDebounceTimer(null); } catch (e) {} } }, globals.FRAME_TIME * globals.DEBOUNCE_MULTIPLIER)); 
+          } catch (e) {}
       }
     };
       
@@ -97,9 +125,7 @@ Page({
     const rightArrow = createWidget(widget.TEXT, { text: '»', x: PX.x296, y: PX.x36, w: PX.x80, h: PX.x70, color: 0xff6600, text_size: PX.x78, align_h: align.CENTER_H, align_v: align.CENTER_V });
           rightArrow.addEventListener?.(event.CLICK_DOWN, () => navigateDate(1));
 
-    // LOADER TEXT
-    _loadingText = createWidget(widget.TEXT, { text: globals.LOADING_TEXT, x: px(182), y: px(226), w: px(60), h: px(30), color: 0x888888, text_size: px(24), align_h: align.CENTER_H, align_v: align.CENTER_V });
-
+    
     state.setInterpolationEnabled(true);
     header.updateHeader(debugDateText, statusText, graph.getGraphWindowMode());
     // place legend just below the smileys immediately so it doesn't wait for RAF
@@ -109,10 +135,20 @@ Page({
       legend.refreshLegendCounts(graph.drawGraph);
     } catch (e) {}
 
-   (typeof requestAnimationFrame !== 'undefined' ? requestAnimationFrame : setTimeout)(() => {
-    graph.drawGraph(false, true); 
-    setTimeout(() => { state.setInterpolationEnabled(true); _loadingText.setProperty?.(prop.MORE, { y: px(-100) }); }, 100);
-   });
+    (typeof requestAnimationFrame !== 'undefined' ? requestAnimationFrame : setTimeout)(() => {
+      graph.drawGraph(false, true); 
+      setTimeout(() => { state.setInterpolationEnabled(true); }, 100);
+    });
+
+    // LOADING INDICATOR 
+    _loadingText = createWidget(widget.TEXT, { text: globals.LOADING_TEXT, x: px(182), y: px(226), w: px(60), h: px(30), color: 0x888888, text_size: px(24), align_h: align.CENTER_H, align_v: align.CENTER_V });
+        
+    (typeof requestAnimationFrame !== 'undefined' ? requestAnimationFrame : setTimeout)(() => {
+      try {
+        _loadingText = createWidget(widget.TEXT, { text: globals.LOADING_TEXT, x: px(182), y: px(226), w: px(60), h: px(30), color: 0x888888, text_size: px(24), align_h: align.CENTER_H, align_v: align.CENTER_V });
+        try { state.registerLoadingWidget(_loadingText); } catch (e) {}
+      } catch (e) {}
+    });
 
   },
   onShow() {

@@ -323,7 +323,9 @@ export function drawGraph(skipDots = false, stagger) {
 
   if (!drawGraph.gridWidgets) {
     drawGraph.gridWidgets = [];
-    if (globals.SHOW_GRID_DOTS) for (let i = 0; i < globals.moods.length; ++i) {
+    const allowGrid = globals.SHOW_GRID_DOTS && !(globals.DEFER_UPDATE_UNTIL_DEBOUNCE && state.getIsNavigating());
+    console.log('allowGrid', allowGrid);
+    if (allowGrid) for (let i = 0; i < globals.moods.length; ++i) {
       const y = graphTop + Math.round((globals.moods.length - globals.moods[i].value) * graphHeight / (moodRows - 1)), gridDot = createWidget(widget.TEXT, { text: '●', x: gpx.leftMinus26, y: px(y - 10), w: PX.x20, h: PX.x20, color: globals.moods[i].color, text_size: PX.x12, align_h: align.CENTER_H, align_v: align.CENTER_V });
       gridDot.setProperty?.(prop.MORE, { z: 1 });
       drawGraph.gridWidgets.push(gridDot);
@@ -830,7 +832,7 @@ export const refreshMoodDataAndUI = () => {
     state.setMoodHistoryCacheKey(null);
     state.setMoodHistoryCache(null);
     state.setPrevDisplayedMood(null);
-    if (_loadingText) _loadingText.setProperty?.(prop.MORE, { y: px(226) });
+    try { state.showLoadingImmediate(); } catch (e) {}
     if (drawGraph) drawGraph(true);
     //if (drawGraph && drawGraph.debugDateText && drawGraph.statusText && imgWidgets) {
         //updateUIAfterDateChange(drawGraph.debugDateText, drawGraph.statusText, imgWidgets);
@@ -839,7 +841,7 @@ export const refreshMoodDataAndUI = () => {
         try {
         state.setInterpolationEnabled(true);
         drawGraph && graph.drawGraph();
-        _loadingText?.setProperty?.(prop.MORE, { y: px(-100) });
+        try { state.hideLoadingSoon(0); } catch (e) {}
         } catch (e) {}
     }, 100);
 }; 
@@ -885,13 +887,13 @@ export const updateUIAfterDateChange = (debugDateText, statusText, imgWidgets,) 
     if (globals.ULTRA_LIGHT_NAV) {
     if (!globals.THROTTLE_DATE_UPDATES || !_dateUpdateThrottle) { const str = buildDateStr(state.getDebugDate(), getGraphWindowMode()); debugDateText.setProperty?.(prop.MORE, { text: str }); _prevDateStr = str; if (globals.THROTTLE_DATE_UPDATES) _dateUpdateThrottle = setTimeout(() => _dateUpdateThrottle = null, 16); }
     state.setIsNavigating(true);
-    if (globals.SHOW_LOADING_INDICATOR && getGraphWindowMode() === 1 && _loadingText) _loadingText.setProperty?.(prop.MORE, { y: px(226) });
+    try { if (globals.SHOW_LOADING_INDICATOR && getGraphWindowMode() === 1) state.showLoadingImmediate(); } catch (e) {}
     if ((getGraphWindowMode() === 0 && globals.HIDE_DOTS_DURING_NAV_WEEK) || (getGraphWindowMode() === 1 && globals.HIDE_DOTS_DURING_NAV_MONTH)) { state.setCachedDebugDate(null); state.setMoodHistoryCache(null); drawGraph(); }
     // Provide immediate visual feedback for explicit nav (avoid perceived delay)
     try { drawGraph(); updateMoodUI(); } catch (e) {}
     if (_navDebounceTimer) clearTimeout(_navDebounceTimer);
     state.setNavDebounceTimer( 
-      setTimeout(() => { state.setIsNavigating(false); _loadingText?.setProperty?.(prop.MORE, { y: px(-100) }); state.setCachedDebugDate(null); drawGraph(); updateMoodUI(); state.setNavDebounceTimer(null); }, globals.FRAME_TIME * globals.DEBOUNCE_MULTIPLIER) 
+      setTimeout(() => { try { state.setIsNavigating(false); state.hideLoadingSoon(0); state.setCachedDebugDate(null); drawGraph(); updateMoodUI(); } catch (e) {} finally { state.setNavDebounceTimer(null); } }, globals.FRAME_TIME * globals.DEBOUNCE_MULTIPLIER) 
     );
     return;
   }
